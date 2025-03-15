@@ -1,6 +1,5 @@
 /.idea
 /.git
 /.venv
-/AppSettings.json
 AppSettings.json
-AppSettings.json
+.gitignore
