@@ -3,79 +3,53 @@ import os
 import re
 from PyQt6.QtWidgets import (
     QApplication, QDialog, QFormLayout, QLabel, QLineEdit,
-    QPushButton, QFileDialog, QComboBox, QMessageBox, QHBoxLayout
+    QPushButton, QFileDialog, QComboBox, QMessageBox, QHBoxLayout, QWidget
 )
 from PyQt6.QtCore import Qt
+
+from func.GLOBAL import LIST_MOD_TEMPLATES
 
 
 class ProjectDialog(QDialog):
     def __init__(self):
         super().__init__()
         self.create = False
-        self.setWindowTitle("Создание проекта")
+        self.setWindowTitle("Выбор конструктора")
         self.setGeometry(100, 100, 400, 300)
         self.initUI()
 
     def initUI(self):
         layout = QFormLayout()
-
-        self.folder_line_edit = QLineEdit()
-        self.browse_button = QPushButton("Выбрать папку")
-        self.browse_button.clicked.connect(self.browse_folder)
-        h0 = QHBoxLayout()
-        h0.addWidget(self.folder_line_edit, 1)
-        h0.addWidget(self.browse_button)
-        layout.addRow("Локация:", h0)
-
-        self.display_name_line_edit = QLineEdit()
-        self.display_name_line_edit.textChanged.connect(self.update_project_name)
-        layout.addRow("Отображаемое название:", self.display_name_line_edit)
-
-        self.name_line_edit = QLineEdit()
-        layout.addRow("Название проекта:", self.name_line_edit)
-
-        self.package_line_edit = QLineEdit()
-        layout.addRow("Пакет (например, example):", self.package_line_edit)
-
-        self.author_line_edit = QLineEdit()
-        layout.addRow("Автор:", self.author_line_edit)
-
-        self.version_combo_box = QComboBox()
-        self.version_combo_box.addItem("145")
-        layout.addRow("Версия игры:", self.version_combo_box)
-
-        self.create_button = QPushButton("Создать проект")
-        self.create_button.clicked.connect(self.create_project)
-        layout.addRow(self.create_button)
+        l = [_ for _ in LIST_MOD_TEMPLATES]
+        self.setFixedSize(self.sizeHint())
+        if len(l) > 0:
+            self.lbl = QLabel("Выберите конструктор для дальнейшей настройки!\nЗа настройку отвечает полностью плагин!")
+            layout.addRow(self.lbl)
+            self.combo = QComboBox()
+            self.combo.addItems(l)
+            layout.addRow(self.combo)
+            h = QHBoxLayout()
+            ok = QPushButton("Открыть")
+            ok.setDefault(True)
+            ok.clicked.connect(self.accept)
+            h.addWidget(ok)
+            cancel = QPushButton("Отмена")
+            cancel.clicked.connect(self.reject)
+            h.addWidget(cancel)
+            layout.addRow(h)
+        else:
+            self.lbl = QLabel("Ни одного конструктора не было создано!\nДобавьте плагин с поддержкой конструктора!")
+            layout.addRow(self.lbl)
+            h = QHBoxLayout()
+            ok = QWidget()
+            h.addWidget(ok)
+            cancel = QPushButton("Отмена")
+            cancel.setDefault(True)
+            cancel.clicked.connect(self.reject)
+            h.addWidget(cancel)
+            layout.addRow(h)
 
         self.setLayout(layout)
-
-    def browse_folder(self):
-        folder = QFileDialog.getExistingDirectory(self, "Выберите папку")
-        if folder:
-            self.folder_line_edit.setText(folder)
-
-    def update_project_name(self):
-        allowed_chars = r"[^a-zA-Z0-9_\.-]"
-        display_text = self.display_name_line_edit.text()
-        sanitized = re.sub(allowed_chars, '-', display_text)
-        sanitized = re.sub(r'-+', '-', sanitized)
-        self.name_line_edit.setText(sanitized)
-
-    def create_project(self):
-        folder = self.folder_line_edit.text()
-        name = self.name_line_edit.text()
-        display_name = self.display_name_line_edit.text()
-        package = self.package_line_edit.text()
-        author = self.author_line_edit.text()
-        version = self.version_combo_box.currentText()
-
-        if not all([folder, name, display_name, package, author]):
-            QMessageBox.warning(self, "Ошибка", "Все поля должны быть заполнены!")
-            return
-
-        self.create = True
-        self.close()
 
 
 if __name__ == "__main__":
