@@ -14,29 +14,6 @@ class ProjectActionMenu(QMenu):
     def __init__(self, project_name, parent=None):
         super().__init__(parent)
         self.project_name = project_name
-        self.setStyleSheet("""
-            QMenu {
-                background-color: #333333;
-                color: #ffd700;
-                border: 1px solid #ffd700;
-                border-radius: 8px;
-                padding: 4px;
-                margin: 0px;
-            }
-            QMenu::item {
-                padding: 6px 25px 6px 20px;
-                border-radius: 4px;
-                margin: 2px;
-            }
-            QMenu::item:selected {
-                background-color: #4d4d4d;
-            }
-            QMenu::separator {
-                height: 1px;
-                background: #ffd700;
-                margin: 4px;
-            }
-        """)
         self.setWindowFlags(self.windowFlags() | Qt.WindowType.FramelessWindowHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
@@ -111,7 +88,6 @@ class LauncherWindow(QMainWindow):
         self.setWindowTitle("Project Launcher")
         self.setGeometry(100, 100, 800, 600)
         self.setup_ui()
-        self.setup_style()
 
     def setup_ui(self):
         widget = QWidget()
@@ -146,36 +122,6 @@ class LauncherWindow(QMainWindow):
         toolbar.addWidget(self.settings_btn)
         toolbar.addWidget(self.import_btn)
         toolbar.addWidget(self.create_btn)
-
-    def setup_style(self):
-        self.setStyleSheet("""
-            QMainWindow {
-                background-color: #1e1e1e;
-            }
-            QToolBar {
-                background-color: #333333;
-                border: none;
-            }
-            QToolButton {
-                color: #ffd700;
-                padding: 5px 10px;
-                border: none;
-            }
-            QToolButton:hover {
-                background-color: #4d4d4d;
-            }
-            QListWidget {
-                background-color: #252525;
-                color: #ffd700;
-                border: none;
-            }
-            QListWidget::item {
-                height: 40px;
-            }
-            QListWidget::item:hover {
-                background-color: #333333;
-            }
-        """)
 
     def add_project(self, name, icon=None, data=None):
         data = data if data is not None else {}
@@ -217,15 +163,6 @@ class LauncherWindow(QMainWindow):
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
             self
         )
-        confirm.setStyleSheet("""
-            QMessageBox {
-                background-color: #1e1e1e;
-                color: #ffd700;
-            }
-            QPushButton {
-                min-width: 80px;
-            }
-        """)
 
         if confirm.exec() == QMessageBox.StandardButton.Yes:
             self.remove_project(data)

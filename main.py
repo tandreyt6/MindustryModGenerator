@@ -11,19 +11,12 @@ from PyQt6.QtCore import *
 from PyQt6.QtGui import *
 
 from UI.Elements.CreateDialog import ProjectDialog
+from UI.Style import dark_style, light_style
 from UI.Window.Editor import EditorWindow
 from UI.Window.Launcher import LauncherWindow
 from func import settings
 
 memory.put("appIsRunning", True)
-
-def unzip_file(zip_path, extract_to):
-    if not os.path.exists(zip_path):
-        raise FileNotFoundError(f"ZIP-файл не найден: {zip_path}")
-    os.makedirs(extract_to, exist_ok=True)
-    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
-        zip_ref.extractall(extract_to)
-        print(f"Архив успешно распакован в: {extract_to}")
 
 class Main:
     def __init__(self):
@@ -33,11 +26,15 @@ class Main:
 
         self.editor = None
         self.launcher_window = LauncherWindow()
-        self.launcher_window.show()
         self.launcher_window.create_project_clicked.connect(self.create_project)
         self.launcher_window.project_open_clicked.connect(self.select_project)
         self.launcher_window.close_signal.connect(self.close)
         self.launcher_window.project_open_dir_clicked.connect(self.showExplorerFolder)
+
+        if settings.get_data("openedProject", None) and os.path.exists(settings.get_data("openedProject")):
+            self.openProject(settings.get_data("openedProject", None))
+        else:
+            self.launcher_window.show()
 
         self.load_recent()
 
@@ -60,15 +57,21 @@ class Main:
     def select_project(self, data):
         if os.path.exists(str(data.get("path", ""))):
             self.launcher_window.hide()
-            self.editor = EditorWindow(data.get("path", ""))
-            self.editor.apply_settings(settings.get_data("editorGeometry", {}))
-            self.editor.saveRequested.connect(self.editorGeometrySave)
-            self.editor.closeSignal.connect(self.closeEditor)
-            self.editor.setFocus()
-            self.editor.show()
+            self.openProject(data.get("path", ""))
+
+    def openProject(self, path: str):
+        settings.save_data("openedProject", path)
+        self.editor = EditorWindow(path)
+        self.editor.apply_settings(settings.get_data("editorGeometry", {}))
+        self.editor.saveRequested.connect(self.editorGeometrySave)
+        self.editor.closeSignal.connect(self.closeEditor)
+        self.editor.setFocus()
+        self.editor.show()
 
     def closeEditor(self, event, b):
         event.accept()
+        if not b:
+            settings.save_data("openedProject", None)
         self.close(b)
 
     def create_project(self):
@@ -89,12 +92,7 @@ class Main:
         self.projects.append({"name": dil.display_name_line_edit.text(), "path": path})
         settings.save_data("recent", self.projects)
         self.launcher_window.hide()
-        self.editor = EditorWindow(path)
-        self.editor.apply_settings(settings.get_data("editorGeometry", {}))
-        self.editor.saveRequested.connect(self.editorGeometrySave)
-        self.editor.closeSignal.connect(self.closeEditor)
-        self.editor.setFocus()
-        self.editor.show()
+        self.openProject(path)
 
     def showExplorerFolder(self, data):
         os.startfile(data["path"])
@@ -114,12 +112,7 @@ class Main:
 
 app = QApplication([])
 
-palette = QPalette()
-palette.setColor(QPalette.ColorRole.Window, QColor(30, 30, 30))
-palette.setColor(QPalette.ColorRole.WindowText, QColor(255, 215, 0))
-palette.setColor(QPalette.ColorRole.Button, QColor(51, 51, 51))
-palette.setColor(QPalette.ColorRole.ButtonText, QColor(255, 215, 0))
-app.setPalette(palette)
+app.setStyleSheet(dark_style)
 
 win = Main()
 

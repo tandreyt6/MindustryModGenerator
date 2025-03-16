@@ -50,15 +50,15 @@ class CreateElementDialog(QDialog):
         button_layout = QHBoxLayout()
 
         cancel_button = QPushButton("Отмена")
-        save_button = QPushButton("Сохранить")
+        self.save_button = QPushButton("Сохранить")
+        self.save_button.setDefault(True)
 
         button_layout.addWidget(cancel_button, stretch=1)
-        button_layout.addWidget(save_button, stretch=1)
+        button_layout.addWidget(self.save_button, stretch=1)
 
         main_layout.addLayout(button_layout)
 
         cancel_button.clicked.connect(self.reject)
-        save_button.clicked.connect(self.accept)
 
     def validSymbols(self, text):
         if any(False if _.lower() in self.valid_symbol else True for _ in text):
