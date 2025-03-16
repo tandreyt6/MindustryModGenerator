@@ -63,10 +63,9 @@ class CollapsibleCategory(QWidget):
         self.title_label = QLabel(title)
         self.title_label.setFont(QFont("Arial", 12, QFont.Weight.Bold))
 
-        self.collapse_button = QToolButton()
+        self.collapse_button = QLabel()
         self.collapse_button.setText("▲")
         self.collapse_button.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-        self.collapse_button.clicked.connect(self.toggle_collapse)
 
         header_layout.addWidget(self.title_label)
         header_layout.addStretch()

@@ -210,9 +210,10 @@ class TreeWidget(QTreeWidget):
         current_parent = None
         result = []
         for txt in path_text:
-            child = self.find_child_by_text(current_parent, txt)
-            if child is None:
+            children = self.find_child_by_text(current_parent, txt)
+            if len(children) != 1:
                 return None
+            child = children[0]
             result.append(child)
             current_parent = child
         return result
@@ -344,16 +345,8 @@ class EditorWindow(QMainWindow):
             with open(os.path.join(path, "mod.hjson"), "r", encoding="utf-8") as e:
                 self.data = hjson.load(e)
         self.package = self.data.get("main", "example.javaMod").split(".")[0]
-        self.setup_palette()
         self.init_ui()
 
-    def setup_palette(self):
-        palette = self.palette()
-        palette.setColor(QPalette.ColorRole.Window, QColor(30, 30, 30))
-        palette.setColor(QPalette.ColorRole.WindowText, QColor(255, 215, 0))
-        palette.setColor(QPalette.ColorRole.Button, QColor(51, 51, 51))
-        palette.setColor(QPalette.ColorRole.ButtonText, QColor(255, 215, 0))
-        self.setPalette(palette)
 
     def handle_rename_validation(self, old_name, new_name, item):
         if not new_name.strip():
@@ -362,16 +355,22 @@ class EditorWindow(QMainWindow):
         if new_name[0].isdigit():
             QMessageBox.warning(self, "Error", "The first character should not be a digit")
             return False
-        if len(self.tree.find_child_by_text(item.parent(), new_name))>0:
+        items = [_ for _ in self.tree.find_child_by_text(item.parent(), new_name) if _.data.get("type") != "category"]
+        folders = [_ for _ in self.tree.find_child_by_text(item.parent(), new_name) if _.data.get("type") == "category"]
+        print(items)
+        print(folders)
+        path = item.get_path()
+        path[-1] = new_name
+        if ((len(items)>1 or len(items)>0 and items[0] != item) and item.data.get("type") != "category") or (item.data.get("type") == "category" and any(_.get_path() == path for _ in folders)):
             QMessageBox.warning(self, "Error", "This name is already exist")
             return False
-        if not new_name in self.elementsData.key_map and item.data.get("type") != "category":
+        if new_name in self.elementsData and item.data.get("type") != "category":
+            QMessageBox.warning(self, "Error", "This name is already exist")
+            return False
+        if item.data.get("type") != "category" and self.elementsData[old_name]['item'] != id(item) and new_name in self.elementsData.key_map:
             QMessageBox.warning(self, "Error", "Name must be unique")
             return False
         return True
-
-    def is_name_unique(self, name):
-        return not name in self.elementsData.key_map
 
     def init_ui(self):
         self.setWindowTitle(self.data.get("displayName", "") + " - Editor")
@@ -577,8 +576,19 @@ public class initScript {{
             e.write(text)
 
     def createItem(self, item: TreeWidgetItem | TreeWidget):
+        def check():
+            items = [_ for _ in self.tree.find_child_by_text(item if isinstance(item, TreeWidgetItem) else None, dil.name_edit.text()) if
+                     _.data.get("type") != "category"]
+            print(items)
+            if len(items) > 1 or len(items) > 0 and items[0] != item:
+                QMessageBox.warning(self, "Error", "This name is already exist")
+            elif dil.name_edit.text() in self.elementsData:
+                QMessageBox.warning(self, "Error", "This name is already exist")
+            else: dil.accept()
+
         print("Create Item at path:", item.get_path())
         dil = CreateElementDialog(item.get_path())
+        dil.save_button.clicked.connect(check)
         r = dil.exec()
         if r == QDialog.DialogCode.Accepted:
             p = dil.category_edit.text().split("/")
@@ -606,8 +616,9 @@ public class initScript {{
             new_category_name = f"NewCategory_{index}"
             print(new_category_name)
             p.append(new_category_name)
-            print(self.tree.find_path_by_text(p)[0])
-            if self.tree.find_path_by_text(p)[0] and item != self.tree.find_path_by_text(p)[0][0]:
+            found = self.tree.find_path_by_text(p)
+            print(found, "found")
+            if found:
                 index += 1
             else:
                 it = self.tree.add_item(p, {"type": "category", "flag": []})
