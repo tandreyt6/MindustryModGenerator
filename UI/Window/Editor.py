@@ -9,12 +9,11 @@ from PyQt6.QtWidgets import *
 from PyQt6.QtCore import *
 from PyQt6.QtGui import *
 
-from UI.Elements.BlockViewOnBackground import CanvasWidget
+from UI.Content.CentralPreviewWidget import PreviewWidget
 from UI.Elements.CardConstructor import TabbedCustomEditor
 from UI.Elements.CreateElementDialog import CreateElementDialog
 from UI.Elements.DragTab import DraggableTabWidget
 from func.GLOBAL import CONTENT_FOLDER, LIST_TYPES
-from func.Types.Block import Block
 from func.Types.Content import Content
 
 
@@ -39,6 +38,8 @@ class TreeWidgetItem(QTreeWidgetItem):
         else:
             flags |= Qt.ItemFlag.ItemIsDragEnabled
             flags &= ~Qt.ItemFlag.ItemIsDropEnabled
+
+        self.setSizeHint(0, QSize(100, 20))
 
         self.setFlags(flags)
 
@@ -334,6 +335,7 @@ class EditorWindow(QMainWindow):
     splitterPosChanged = pyqtSignal(list)
     saveRequested = pyqtSignal(dict)
     closeSignal = pyqtSignal(object, bool)
+    settingsWindowRequest = pyqtSignal()
 
     def __init__(self, path):
         super().__init__()
@@ -351,6 +353,9 @@ class EditorWindow(QMainWindow):
     def handle_rename_validation(self, old_name, new_name, item):
         if not new_name.strip():
             QMessageBox.warning(self, "Error", "Name cannot be empty")
+            return False
+        if len(new_name) < 3:
+            QMessageBox.warning(self, "Error", "Name is long!")
             return False
         if new_name[0].isdigit():
             QMessageBox.warning(self, "Error", "The first character should not be a digit")
@@ -382,6 +387,9 @@ class EditorWindow(QMainWindow):
 
         FileMenu:QMenu = menubar.addMenu('File')
 
+        self.settingsAct = QAction("Settings...")
+        self.settingsAct.triggered.connect(self.settingsWindowRequest.emit)
+        FileMenu.addAction(self.settingsAct)
         self.openModFolder = QAction("Show project folder")
         self.openModFolder.triggered.connect(self.ShowModFolder)
         FileMenu.addAction(self.openModFolder)
@@ -687,7 +695,7 @@ public class initScript {{
 
         content = self.elementsData[id(item)]['data']['content']
         if content in LIST_TYPES:
-            canvas = CanvasWidget()
+            canvas: PreviewWidget = LIST_TYPES.get(self.elementsData[id(item)]['data']['content'])['centralWidget']()
             editor_widget = TabbedCustomEditor(
                 classes=LIST_TYPES[content]["type"],
                 changed_params=self.elementsData[id(item)]['data']['data'],

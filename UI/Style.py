@@ -85,6 +85,16 @@ dark_style = """
     QTreeWidgetItem:hover {
         background-color: #404040;
     }
+    QCheckBox::indicator:checked {
+        background-color: #ffd700;
+        border-radius: 5px;
+    }
+    QCheckBox::indicator {
+        width: 15px;
+        height: 15px;
+        border-radius: 5px;
+        border: 1px solid #404040
+    }
 """
 
 light_style = """

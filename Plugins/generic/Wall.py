@@ -1,4 +1,4 @@
-from func.Types.Block import Block
+from Plugins.generic.Block import Block
 
 
 class Wall(Block):
