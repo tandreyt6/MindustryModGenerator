@@ -11,7 +11,8 @@ from PyQt6.QtWidgets import *
 from PyQt6.QtCore import *
 from PyQt6.QtGui import *
 
-import UI
+import UI as UI2
+from UI.Content import CacheLayer, SoundSelect
 from UI.Elements.CardConstructor import CustomNoneClass
 from UI.Elements.CreateDialog import ProjectDialog
 from UI.Elements.FloatSpinBox import FloatSpinBox
@@ -76,12 +77,13 @@ class Main:
                     continue
                 gl = globals()
                 pluginDict = {
-                    "UI": gl["UI"],
+                    "UI2": gl["UI2"],
                     "Main": gl["Main"],
                     "PyQt6": gl["PyQt6"],
                     "memory": gl["memory"],
                     "settings": gl["settings"],
                     "FloatSpinBox": gl["FloatSpinBox"],
+                    "DynamicImporter": gl["DynamicImporter"],
                     "CustomNoneClass": gl["CustomNoneClass"],
                     "SoundSelectWidget": gl["SoundSelectWidget"],
                 }
