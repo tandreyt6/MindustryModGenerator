@@ -108,6 +108,18 @@ for i in SOUND_TYPES_NOLOAD:
     SOUND_TYPES_NOLOAD[i]['plugin'] = "generic"
     SOUND_TYPES[i] = SOUND_TYPES_NOLOAD[i]
 
+CACHE_LAYER = {
+    "CacheLayer.water": {"displayName": "Water", "plugin": "generic"},
+    "CacheLayer.mud": {"displayName": "Mud", "plugin": "generic"},
+    "CacheLayer.cryofluid": {"displayName": "Cryofluid", "plugin": "generic"},
+    "CacheLayer.tar": {"displayName": "Tar", "plugin": "generic"},
+    "CacheLayer.slag": {"displayName": "Slag", "plugin": "generic"},
+    "CacheLayer.arkycite": {"displayName": "Arkycite", "plugin": "generic"},
+    "CacheLayer.space": {"displayName": "Space", "plugin": "generic"},
+    "CacheLayer.normal": {"displayName": "Normal", "plugin": "generic"},
+    "CacheLayer.walls": {"displayName": "Walls", "plugin": "generic"},
+}
+
 EFFECTS_TYPE_NOLOAD = {
     "Effect.none": {"displayName": "None"},
     "Effect.blockCrash": {"displayName": "Block Crash"},
