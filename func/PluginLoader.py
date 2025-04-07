@@ -1,6 +1,8 @@
 import importlib.util
 import sys
 import os
+import types
+
 
 class DynamicImporter:
     def __init__(self, module_name, file_path, globals_dict):
@@ -11,6 +13,11 @@ class DynamicImporter:
     def load_module(self):
         if not os.path.exists(self.file_path):
             raise FileNotFoundError(f"file {self.file_path} not found!")
+
+        for name, module in self.globals_dict.items():
+            if isinstance(module, types.ModuleType):
+                sys.modules[name] = module
+
         file_abs_path = os.path.abspath(self.file_path)
         spec = importlib.util.spec_from_file_location(self.module_name, file_abs_path)
         module = importlib.util.module_from_spec(spec)
@@ -25,3 +32,4 @@ class DynamicImporter:
         spec.loader.exec_module(module)
         self.globals_dict.update(module.__dict__)
         return module
+
