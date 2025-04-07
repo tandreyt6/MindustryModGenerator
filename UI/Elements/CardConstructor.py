@@ -2,34 +2,12 @@ from collections import defaultdict
 
 from PyQt6.QtWidgets import *
 from PyQt6.QtCore import pyqtSignal, QObject, Qt
-from PyQt6.QtGui import QColor, QFont
+from PyQt6.QtGui import QFont
 import inspect
 
-
-class CustomWidgetSignal(QObject):
-    value_changed = pyqtSignal(object)
-
-
-class BaseCustomWidget(QWidget):
-    def __init__(self, initial_value, parent=None):
-        super().__init__(parent)
-        self.signal = CustomWidgetSignal()
-        self._value = initial_value
-
-    def set_value(self, value):
-        raise NotImplementedError("Subclasses must implement set_value")
-
-    def value(self):
-        return self._value
-
-
-class CustomNoneClass(BaseCustomWidget):
-
-    def __init__(self, initial_value, parent=None):
-        super().__init__(initial_value, parent)
-
-    def set_value(self, value):
-        pass
+from UI.Content import FloatSelect, IntSelect, BoolSelect, StringSelect
+from UI.ContentFormat import Format, saveMode
+from UI.Elements.BaseCustomWidget import BaseCustomWidget, CustomNoneClass
 
 
 class SyncSignals(QObject):
@@ -96,21 +74,60 @@ class TabbedCustomEditor(QWidget):
     saved = pyqtSignal(dict)
     saveFromSelf = pyqtSignal(object, dict)
 
-    def __init__(self, classes, changed_params=None, categories=None, parent=None):
-        super().__init__(parent)
-        self.classes = classes
+    def __init__(self, classe, changed_params=None, id=0, name="Block", parent=None):
+        super().__init__()
+        self.classe = classe(id, name)
         self.changed_params = changed_params or {}
-        self.categories = categories or {}
+        self.param_configs = defaultdict(lambda: (None, None, "unknown", True, None, saveMode.ifChanged, True, None))
         self.param_widgets = {}
-        self.search_tab = None
-        self.custom_widgets = {}
         self.sync_signals = SyncSignals()
-        self.param_to_category = {}
+        self.custom_widgets = {}
         self.hidden_params = set()
+        self.loadedFromClass = False
 
-        for category, params in self.categories.items():
-            for param in params:
-                self.param_to_category[param] = category
+        for attr_name in dir(self.classe):
+            if not attr_name.startswith('_'):
+                attr = getattr(self.classe, attr_name)
+                if isinstance(attr, tuple):
+                    self.param_configs[attr_name] = self._complete_tuple(attr)
+        self._process_param_configs()
+
+    def _complete_tuple(self, t):
+        default = (None, None, "unknown", True, None, saveMode.ifChanged, True, None)
+        return tuple(t + default[len(t):])
+
+    def _process_param_configs(self):
+        for param, config in self.param_configs.items():
+            content_type, default, group, visible, event_filter, save_mode, show_title, filter_idx = config
+
+            if not visible:
+                self.hidden_params.add(param)
+                continue
+
+            if inspect.isclass(content_type) and issubclass(content_type, BaseCustomWidget):
+                self.custom_widgets[param] = (content_type, show_title)
+            elif content_type in [int, float, bool, str]:
+                self._map_standard_types(content_type, param, show_title)
+            elif content_type is None:
+                self.custom_widgets[param] = (CustomNoneClass, False)
+
+    def _map_standard_types(self, ctype, param, show_title):
+        widget_map = {
+            int: (IntSelect.Widget, Format.Int),
+            float: (FloatSelect.Widget, Format.Float),
+            bool: (BoolSelect.Widget, Format.Bool),
+            str: (StringSelect.Widget, Format.String)
+        }
+        if ctype in widget_map:
+            widget_class, fmt = widget_map[ctype]
+            widget_class.TYPE = fmt
+            self.custom_widgets[param] = (widget_class, show_title)
+
+    def _get_widget_class(self, param):
+        return self.custom_widgets.get(param, (None, True))[0]
+
+    def _get_show_title(self, param):
+        return self.custom_widgets.get(param, (None, True))[1]
 
     def pack(self):
         self.init_ui()
@@ -130,7 +147,11 @@ class TabbedCustomEditor(QWidget):
         layout.addWidget(self.tabs)
         self.create_main_tabs()
 
-        save_btn = QPushButton("Сохранить")
+        previewBtn = QPushButton("Preview")
+        previewBtn.clicked.connect(self.previewChange)
+        layout.addWidget(previewBtn)
+
+        save_btn = QPushButton("Save")
         save_btn.clicked.connect(self.save)
         layout.addWidget(save_btn)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -143,61 +164,106 @@ class TabbedCustomEditor(QWidget):
             self.custom_widgets[param_name] = widget_class
 
     def create_main_tabs(self):
-        param_mapping = self.calculate_parameter_mapping()
-        for class_idx, cls in enumerate(self.classes):
-            tab = QWidget()
-            scroll = QScrollArea()
-            content = QWidget()
-            main_layout = QVBoxLayout(content)
-            main_layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        tab = QWidget()
+        scroll = QScrollArea()
+        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+        scroll.setWidgetResizable(True)
+        content = QWidget()
+        content.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        layout = QVBoxLayout(content)
+        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        layout.setContentsMargins(2, 2, 2, 2)
 
-            category_groups = {}
-            uncategorized_params = []
-            for param in param_mapping[class_idx]:
-                if param in self.param_to_category:
-                    category = self.param_to_category[param]
-                    category_groups.setdefault(category, []).append(param)
-                else:
-                    uncategorized_params.append(param)
+        categories = defaultdict(list)
+        for param in self.param_configs:
+            if param in self.hidden_params:
+                continue
+            _, _, group, _, _, _, show_title, _ = self.param_configs[param]
+            categories[group].append((param, show_title))
 
-            for category in self.categories:
-                if category in category_groups:
-                    print(1)
-                    params_in_category = [p for p in self.categories[category] if not p in self.hidden_params]
-                    print(params_in_category)
-                    collapsible_category = CollapsibleCategory(category)
-                    for param in params_in_category:
-                        default_value = getattr(cls(), param)
-                        widget, has_label = self.create_widget(param, default_value)
-                        if widget is not None:
-                            collapsible_category.add_widget(widget, has_label, param)
-                            collapsible_category.is_collapsed = False
-                            collapsible_category.toggle_collapse()
-                            self.register_widget(param, widget, default_value)
-                    main_layout.addWidget(collapsible_category)
+        for group, params in categories.items():
+            collapsible = CollapsibleCategory(group)
+            collapsible.toggle_collapse()
+            for param, show_title in params:
+                widget = self.create_param_widget(param)
+                if widget:
+                    widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+                    collapsible.add_widget(widget, show_title, param)
+            layout.addWidget(collapsible)
+        layout.addStretch()
 
-            if uncategorized_params:
-                form_layout = QFormLayout()
-                form_layout.setContentsMargins(10, 0, 10, 10)
-                for param in uncategorized_params:
-                    default_value = getattr(cls(), param)
-                    widget, has_label = self.create_widget(param, default_value)
-                    if widget is None:
-                        continue
-                    if has_label:
-                        param_label = QLabel(param)
-                        form_layout.addRow(param_label, widget)
-                    else:
-                        form_layout.addRow(widget)
-                    self.register_widget(param, widget, default_value)
-                main_layout.addLayout(form_layout)
+        scroll.setWidget(content)
+        tab_layout = QVBoxLayout(tab)
+        tab_layout.addWidget(scroll)
+        tab_layout.setContentsMargins(0, 0, 0, 0)
+        self.tabs.addTab(tab, "Variables")
 
-            scroll.setWidget(content)
-            scroll.setWidgetResizable(True)
-            tab_layout = QVBoxLayout(tab)
-            tab_layout.setContentsMargins(0, 0, 0, 0)
-            tab_layout.addWidget(scroll)
-            self.tabs.addTab(tab, cls.__name__)
+        tabFunc = QWidget()
+        scrollF = QScrollArea()
+        scrollF.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        scrollF.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+        scrollF.setWidgetResizable(True)
+        contentF = QWidget()
+        contentF.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        layout = QVBoxLayout(contentF)
+        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        layout.setContentsMargins(2, 2, 2, 2)
+
+        scrollF.setWidget(contentF)
+        tab_layoutF = QVBoxLayout(tabFunc)
+        tab_layoutF.addWidget(scrollF)
+        tab_layoutF.setContentsMargins(0, 0, 0, 0)
+        self.tabs.addTab(tabFunc, "Methods")
+
+        self.customTabs = self.classe.get_custom_tabs()
+        for tab in self.customTabs:
+            self.tabs.addTab(tab[1], tab[0])
+
+    def create_param_widget(self, param):
+        config = self.param_configs[param]
+        content_type, default, _, _, _, _, show_title, _ = config
+        current_value = self.changed_params.get(param, default)
+
+        widget = None
+
+        if content_type in [int, float, bool, str]:
+            widget_class = self._get_widget_class(param)
+            if widget_class:
+                widget = widget_class()
+                widget.set_value(current_value)
+        elif inspect.isclass(content_type) and issubclass(content_type, BaseCustomWidget):
+            widget = content_type()
+            widget.set_value(current_value)
+
+        if widget:
+            self.register_widget(
+                param=param,
+                widget=widget,
+                meta={
+                    'default': default,
+                    'save_mode': config[5]
+                }
+            )
+            widget.signal.value_changed.connect(lambda v: self.on_param_changed(param, v))
+
+        return widget
+
+    def on_param_changed(self, param, value):
+        print(param, "change to", value)
+        self.sync_signals.global_value_changed.emit(param, value)
+        self.changed_params[param] = value
+
+    def update_all_widgets(self, param, value):
+        if param in self.param_widgets:
+            for widget in self.param_widgets[param]['widgets']:
+                try:
+                    if widget != self.sender():
+                        widget.blockSignals(True)
+                        widget.set_value(value)
+                        widget.blockSignals(False)
+                except RuntimeError:
+                    self.param_widgets[param]['widgets'].pop(self.param_widgets[param]['widgets'].index(widget))
 
     def create_widget(self, param_name, default_value):
         if param_name in self.custom_widgets:
@@ -211,31 +277,7 @@ class TabbedCustomEditor(QWidget):
             )
             return widget, self.custom_widgets[param_name][1]
 
-        if isinstance(default_value, bool):
-            widget = QCheckBox()
-            widget.setChecked(self.changed_params.get(param_name, default_value))
-            widget.stateChanged.connect(
-                lambda: self.on_widget_changed(param_name, widget.isChecked())
-            )
-        elif isinstance(default_value, int):
-            widget = QSpinBox()
-            widget.setValue(self.changed_params.get(param_name, default_value))
-            widget.valueChanged.connect(
-                lambda: self.on_widget_changed(param_name, widget.value())
-            )
-        elif isinstance(default_value, float):
-            widget = QDoubleSpinBox()
-            widget.setValue(self.changed_params.get(param_name, default_value))
-            widget.valueChanged.connect(
-                lambda: self.on_widget_changed(param_name, widget.value())
-            )
-        else:
-            widget = QLineEdit(str(self.changed_params.get(param_name, default_value)))
-            widget.textChanged.connect(
-                lambda: self.on_widget_changed(param_name, widget.text())
-            )
-
-        return widget, True
+        return None, True
 
     def on_widget_changed(self, param_name, value):
         self.sync_signals.global_value_changed.emit(param_name, value)
@@ -243,64 +285,74 @@ class TabbedCustomEditor(QWidget):
     def on_custom_widget_changed(self, param_name, value):
         self.sync_signals.global_value_changed.emit(param_name, value)
 
-    def update_all_widgets(self, param_name, value):
-        for widget in self.param_widgets.get(param_name, {}).get('widgets', []):
-            if widget != self.sender():
-                if isinstance(widget, BaseCustomWidget):
-                    widget.set_value(value)
-                else:
-                    self.set_standard_widget_value(widget, value)
-
-    def register_widget(self, param, widget, default_value):
+    def register_widget(self, param, widget, meta):
         if param not in self.param_widgets:
             self.param_widgets[param] = {
                 'widgets': [],
-                'default': default_value
+                'default': meta['default'],
+                'save_mode': meta['save_mode']
             }
         self.param_widgets[param]['widgets'].append(widget)
 
     def update_search_tab(self, text):
         search_text = text.strip().lower()
-        if self.search_tab:
+
+        if hasattr(self, 'search_tab') and self.search_tab:
             self.tabs.removeTab(self.tabs.indexOf(self.search_tab))
             self.search_tab = None
 
         if search_text:
             self.search_tab = QWidget()
             scroll = QScrollArea()
-            content = QWidget()
-            form_layout = QFormLayout()
-            content.setLayout(form_layout)
-            scroll.setWidget(content)
             scroll.setWidgetResizable(True)
 
-            found_params = [p for p in self.param_widgets
-                            if search_text in p.lower() and p not in self.hidden_params]
+            content = QWidget()
+            form_layout = QFormLayout(content)
+            form_layout.setFieldGrowthPolicy(QFormLayout.FieldGrowthPolicy.AllNonFixedFieldsGrow)
+
+            found_params = [
+                p for p in self.param_configs
+                if search_text in p.lower()
+                   and p not in self.hidden_params
+                   and self.param_configs[p][3]
+            ]
 
             for param in found_params:
-                default = self.param_widgets[param]['default']
-                widget, _ = self.create_widget(param, default)
-                if _:
+                widget = self.create_param_widget(param)
+                if widget:
+                    widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
                     label = QLabel(param)
                     form_layout.addRow(label, widget)
-                else:
-                    form_layout.addRow(widget)
-                self.register_widget(param, widget, default)
 
-            self.search_tab.setLayout(QVBoxLayout())
-            self.search_tab.layout().addWidget(scroll)
-            self.tabs.addTab(self.search_tab, "Поиск")
+            scroll.setWidget(content)
+
+            tab_layout = QVBoxLayout(self.search_tab)
+            tab_layout.addWidget(scroll)
+            tab_layout.setContentsMargins(2, 2, 2, 2)
+
+            self.tabs.addTab(self.search_tab, "Search")
             self.tabs.setCurrentWidget(self.search_tab)
 
-    def calculate_parameter_mapping(self):
+    def calculate_parameter_mapping(self, objs:object=None):
         param_owners = {}
-        for class_idx, cls in enumerate(self.classes):
-            instance = cls()
-            for name in vars(instance):
-                if not name.startswith('_') and name not in self.hidden_params:
-                    param_owners[name] = class_idx
+        if objs is None: objs = self.classe
+
+        p = self.calculate_parameter_mapping_class(objs, 0)
+        param_owners.update(p)
         return {i: [p for p, c in param_owners.items() if c == i]
-                for i in range(len(self.classes))}
+                for i in range(len(objs))}
+
+    def calculate_parameter_mapping_class(self, cls):
+        param_owners = {}
+        instance = cls()
+        for attr_name in dir(instance):
+            if attr_name.startswith('_'): continue
+            attr = getattr(instance, attr_name)
+            if isinstance(attr, tuple):
+                params = self.parse_parameter_tuple(attr)
+                if params['visible'] and attr_name not in self.hidden_params:
+                    param_owners[attr_name] = cls.__name__
+        return param_owners
 
     def set_standard_widget_value(self, widget, value):
         if isinstance(widget, QCheckBox):
@@ -313,23 +365,57 @@ class TabbedCustomEditor(QWidget):
             widget.setText(str(value))
 
     def apply_initial_params(self):
-        for param, info in self.param_widgets.items():
+        for param in self.param_configs:
             if param in self.changed_params:
                 value = self.changed_params[param]
-                for widget in info['widgets']:
-                    if isinstance(widget, BaseCustomWidget):
-                        widget.set_value(value)
-                    else:
-                        self.set_standard_widget_value(widget, value)
+                for widget in self.param_widgets.get(param, {}).get("widgets", []):
+                    widget.set_value(value)
 
     def save(self):
         changes = {}
-        for param, info in self.param_widgets.items():
-            current_value = self.get_widget_value(info['widgets'][0])
-            if current_value != info['default']:
-                changes[param] = current_value
+        for param, config in self.param_configs.items():
+            _, default, _, _, _, save_mode, _, _ = config
+            current = self.changed_params.get(param, default)
+
+            if save_mode == saveMode.Force:
+                changes[param] = current
+            elif (save_mode == saveMode.ifChanged or save_mode == True) and current != default:
+                changes[param] = current
+
         self.saved.emit(changes)
         self.saveFromSelf.emit(self, changes)
+
+    def previewChange(self):
+        changes = {}
+        for param, config in self.param_configs.items():
+            _, default, _, _, _, save_mode, _, _ = config
+            current = self.changed_params.get(param, default)
+
+            if save_mode == saveMode.Force:
+                changes[param] = current
+            elif (save_mode == saveMode.ifChanged or save_mode == True) and current != default:
+                changes[param] = current
+
+        def save():
+            dil.accept()
+            self.saved.emit(changes)
+            self.saveFromSelf.emit(self, changes)
+
+        print(changes)
+        dil = QDialog()
+        dil.setWindowIcon(QApplication.windowIcon())
+        dil.setWindowTitle("Preview")
+        v = QVBoxLayout()
+        dil.setLayout(v)
+        listWidget = QListWidget()
+        v.addWidget(listWidget)
+        for param in changes:
+            listWidget.addItem(f"{param} = {str(changes[param])}")
+        save_btn = QPushButton("Save")
+        save_btn.clicked.connect(save)
+        v.addWidget(save_btn)
+        dil.exec()
+
 
     def get_widget_value(self, widget):
         if widget is None:

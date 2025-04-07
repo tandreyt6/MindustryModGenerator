@@ -29,7 +29,7 @@ class CanvasWidget(QWidget):
         self.sprites = []
         self.view_offset = QPointF(0, 0)
         self.view_scale = 1.0
-        self.zoom_range = (0.5, 5.0)
+        self.zoom_range = (0.3, 5.0)
         self.dragging_view = False
         self.grid = True
         self.mouse_scene_pos = QPointF()
@@ -103,9 +103,8 @@ class CanvasWidget(QWidget):
     def mousePressEvent(self, e):
         scene_pos = self.mapToScene(e.pos())
 
-        if e.button() == Qt.MouseButton.LeftButton and e.modifiers() & Qt.KeyboardModifier.ControlModifier:
-            if self.selected_sprite:
-                self.selected_sprite.selected = False
+        if e.button() == Qt.MouseButton.LeftButton and e.modifiers() & Qt.KeyboardModifier.ControlModifier and self.selected_sprite or self.selected_sprite and self.selected_sprite.movable == False:
+            self.selected_sprite.selected = False
             self.selected_sprite = None
 
             for sprite in reversed(self.sprites):
@@ -140,7 +139,7 @@ class CanvasWidget(QWidget):
         self.coord_label.resize(150, 20)
         self.coord_label.show()
 
-        if self.selected_sprite and self.selected_sprite.dragging:
+        if self.selected_sprite and self.selected_sprite.dragging and self.selected_sprite.movable:
             new_pos = self.mouse_scene_pos - self.grab_offset
 
             if self.snap_to_grid:

@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import QWidget, QVBoxLayout
 
-from UI.Elements.CardConstructor import BaseCustomWidget
+from UI.Elements.BaseCustomWidget import BaseCustomWidget
 from UI.Elements.SearchBox import SearchBox
 
 

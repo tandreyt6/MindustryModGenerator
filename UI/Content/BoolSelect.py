@@ -1,5 +1,5 @@
 from UI.ContentFormat import Format
-from UI.Elements.CardConstructor import BaseCustomWidget
+from UI.Elements.BaseCustomWidget import BaseCustomWidget
 from PyQt6.QtWidgets import QCheckBox
 
 
@@ -10,7 +10,7 @@ class Widget(QCheckBox, BaseCustomWidget):
         super().__init__(QCheckBox, None)
         super().__init__(BaseCustomWidget, None)
 
-        self.stateChanged.connect(lambda val: self.signal.emit(bool(val)))
+        self.stateChanged.connect(lambda val: self.signal.value_changed.emit(bool(val)))
 
     def set_value(self, value: str|bool):
         if str(value).lower() == 'true':

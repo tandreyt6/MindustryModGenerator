@@ -30,7 +30,7 @@ class FocusLineEdit(QLineEdit):
 
 class SearchBox(QWidget):
     def __init__(self, items, paintParent=None):
-        super().__init__()
+        QWidget.__init__(self)
         self.items = items
         self.paintParent = paintParent
 

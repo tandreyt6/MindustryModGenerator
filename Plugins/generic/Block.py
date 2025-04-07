@@ -1,6 +1,6 @@
 import json
 from generic import UI2
-print(UI2.Content.__dict__)
+
 CacheLayer = UI2.Content.CacheLayer
 SoundSelect = UI2.Content.SoundSelect
 saveMode = UI2.ContentFormat.saveMode
@@ -12,7 +12,7 @@ if False: # for IDE
 class Block():
     def __init__(self, name="Block"):
         # <var name> = tuple(contentType(CustomWidgetType), defaultValue, group, isVisible, eventFilter, saveMode, showTitle, filterIndex)
-        # ... = tuple(None, None, "unknown", True, None, True, True, saveMode.ifChanged, None)
+        # ... = tuple(None, None, "unknown", True, None, saveMode.ifChanged, True, None)
         self.name = (str, name, "settings", False, None, False)
         self.flags = (None, set(), "settings", False, None, False)
         # self.attributes = (Attributes, {}, "settings", False, None, False)
@@ -86,7 +86,7 @@ class Block():
         self.forceDark = (bool, False, "inGame", True, None, True)
         self.alwaysReplace = (bool, False, "inGame", True, None, True)
         self.replaceable = (bool, True, "inGame", True, None, True)
-        self.group = (BlockGroup, "BlockGroup.none", "inGame", True, None, True)
+        # self.group = (BlockGroup, "BlockGroup.none", "inGame", True, None, True)
         # self.priority = (TargetPriority, "TargetPriority.base", "inGame", True, None, True)
         self.unitCapModifier = (int, 0, "inGame", True, None, True)
         self.configurable = (bool, False, "inGame", True, None, True)
@@ -104,13 +104,13 @@ class Block():
         self.allowDiagonal = (bool, True, "inGame", True, None, True)
         self.swapDiagonalPlacement = (bool, False, "inGame", True, None, True)
         self.schematicPriority = (int, 0, "inGame", True, None, True)
-        self.mapColor = (ColorSelect, (0, 0, 0, 1), "inGame", True, None, True)
+        # self.mapColor = (ColorSelect, (0, 0, 0, 1), "inGame", True, None, True)
         self.hasColor = (bool, False, "inGame", True, None, True)
         self.targetable = (bool, True, "inGame", True, None, True)
         self.attacks = (bool, False, "inGame", True, None, True)
         self.suppressable = (bool, False, "inGame", True, None, True)
         self.canOverdrive = (bool, True, "inGame", True, None, True)
-        self.outlineColor = (ColorHexSelect, "404049", "inGame", True, None, True)
+        # self.outlineColor = (ColorHexSelect, "404049", "inGame", True, None, True)
         self.outlineIcon = (bool, False, "inGame", True, None, True)
         self.outlineRadius = (int, 4, "inGame", True, None, True)
         self.outlinedIcon = (int, -1, "inGame", True, None, True)
@@ -122,7 +122,7 @@ class Block():
         self.breakSound = (SoundSelect.Widget, "Sounds.breaks", "inGame", True, None, True)
         self.destroySound = (SoundSelect.Widget, "Sounds.boom", "inGame", True, None, True)
         self.albedo = (float, 0.0, "inGame", True, None, True)
-        self.lightColor = (ColorHexSelect, "404049", "inGame", True, None, True)
+        # self.lightColor = (ColorHexSelect, "404049", "inGame", True, None, True)
         self.emitLight = (bool, False, "inGame", True, None, True)
         self.lightRadius = (float, 60.0, "inGame", True, None, True)
         self.fogRadius = (int, -1, "inGame", True, None, True)
@@ -130,22 +130,22 @@ class Block():
         self.loopSoundVolume = (float, 0.5, "inGame", True, None, True)
         self.ambientSound = (SoundSelect.Widget, "Sounds.none", "inGame", True, None, True)
         self.ambientSoundVolume = (float, 0.05, "inGame", True, None, True)
-        self.requirements = (RequirementsSelect, [], "inGame", True, None, True)
-        self.category = (CategorySelect, "Category.distribution", "inGame", True, None, True)
+        # self.requirements = (RequirementsSelect, [], "inGame", True, None, True)
+        # self.category = (CategorySelect, "Category.distribution", "inGame", True, None, True)
         self.buildCost = (float, 20.0, "inGame", True, None, True)
         self.buildCostMultiplier = (float, 1.0, "inGame", True, None, True)
         self.deconstructThreshold = (float, 0.0, "inGame", True, None, True)
         self.instantDeconstruct = (bool, False, "inGame", True, None, True)
-        self.placeEffect = (FxSelect, "Fx.placeBlock", "inGame", True, None, True)
-        self.breakEffect = (FxSelect, "Fx.breakBlock", "inGame", True, None, True)
-        self.destroyEffect = (FxSelect, "Fx.dynamicExplosion", "inGame", True, None, True)
+        # self.placeEffect = (FxSelect, "Fx.placeBlock", "inGame", True, None, True)
+        # self.breakEffect = (FxSelect, "Fx.breakBlock", "inGame", True, None, True)
+        # self.destroyEffect = (FxSelect, "Fx.dynamicExplosion", "inGame", True, None, True)
         self.researchCostMultiplier = (float, 1.0, "inGame", True, None, True)
-        self.researchCostMultipliers = (researchCostMultipliersSelect, {}, "inGame", True, None, True)
+        # self.researchCostMultipliers = (researchCostMultipliersSelect, {}, "inGame", True, None, True)
         self.instantTransfer = (bool, False, "inGame", True, None, True)
         self.quickRotate = (bool, True, "inGame", True, None, True)
         self.selectScroll = (float, 0.0, "inGame", True, None, True)
         self.hasConsumers = (bool, False, "inGame", True, None, True)
-        self.envEnabled =  (envSelect, "Env.terrestrial", "inGame", True, None, True)
+        # self.envEnabled =  (envSelect, "Env.terrestrial", "inGame", True, None, True)
 
         # Group: Ore
         # self.itemDrop = (ItemSelect, False, "ore", True, None, True)
@@ -155,7 +155,7 @@ class Block():
         self.scaledHealth = (float, -1.0, "basic", True, None, True)
         self.health = (int, -1, "basic", True, None, True)
         self.armor = (float, 0.0, "basic", True, None, True)
-        self.size = (SizeInt, 1, "basic", True, None, True)
+        # self.size = (SizeInt, 1, "basic", True, None, True)
 
         # Group: Effect & onBrake
         self.baseExplosiveness = (float, 0.0, "effect", True, None, True)

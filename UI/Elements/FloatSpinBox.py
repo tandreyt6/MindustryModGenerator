@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import QDoubleSpinBox
 
-from UI.Elements.CardConstructor import BaseCustomWidget
+from UI.Elements.BaseCustomWidget import BaseCustomWidget
 
 
 class FloatSpinBox(QDoubleSpinBox, BaseCustomWidget):
@@ -9,7 +9,7 @@ class FloatSpinBox(QDoubleSpinBox, BaseCustomWidget):
         super().__init__(BaseCustomWidget, None)
         self.setValue(value)
 
-        self.valueChanged.connect(lambda val: self.signal.emit(val))
+        self.valueChanged.connect(lambda val: self.signal.value_changed.emit(val))
 
     def setValue(self, val):
         if isinstance(val, str):

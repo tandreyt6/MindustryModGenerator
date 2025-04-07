@@ -1,5 +1,5 @@
 from UI.ContentFormat import Format
-from UI.Elements.CardConstructor import BaseCustomWidget
+from UI.Elements.BaseCustomWidget import BaseCustomWidget
 from UI.Elements.SearchBox import SearchBox
 from func.GLOBAL import CACHE_LAYER
 

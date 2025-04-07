@@ -10,6 +10,7 @@ from PyQt6.QtCore import *
 from PyQt6.QtGui import *
 
 from UI.Content.CentralPreviewWidget import PreviewWidget
+from UI.ContentFormat import ALL_TABS
 from UI.Elements.CardConstructor import TabbedCustomEditor
 from UI.Elements.CreateElementDialog import CreateElementDialog
 from UI.Elements.DragTab import DraggableTabWidget
@@ -366,7 +367,8 @@ class EditorWindow(QMainWindow):
         print(folders)
         path = item.get_path()
         path[-1] = new_name
-        if ((len(items)>1 or len(items)>0 and items[0] != item) and item.data.get("type") != "category") or (item.data.get("type") == "category" and any(_.get_path() == path for _ in folders)):
+        if ((len(items)>1 or len(items)>0 and items[0] != item) and item.data.get("type") != "category") \
+                or (item.data.get("type") == "category" and any(_.get_path() == path for _ in folders)):
             QMessageBox.warning(self, "Error", "This name is already exist")
             return False
         if new_name in self.elementsData and item.data.get("type") != "category":
@@ -380,7 +382,7 @@ class EditorWindow(QMainWindow):
     def init_ui(self):
         self.setWindowTitle(self.data.get("displayName", "") + " - Editor")
         if self.path:
-            self.setWindowIcon(QIcon(os.path.join(self.path, "icon.png")))
+            QApplication.setWindowIcon(QIcon(os.path.join(self.path, "icon.png")))
         self.setGeometry(100, 100, 1200, 800)
 
         menubar = self.menuBar()
@@ -402,8 +404,13 @@ class EditorWindow(QMainWindow):
         menubar.addMenu('Build')
         menubar.addMenu('Gradle')
 
+        self.central_widget = QWidget()
+        self.v = QVBoxLayout(self.central_widget)
+        self.v.setContentsMargins(0, 0, 0, 0)
+        self.setCentralWidget(self.central_widget)
+
         self.splitter = QSplitter()
-        self.setCentralWidget(self.splitter)
+        self.v.addWidget(self.splitter)
 
         self.tree = TreeWidget()
         self.tree.itemRenamed.connect(self.handle_rename_item)
@@ -451,6 +458,7 @@ class EditorWindow(QMainWindow):
             self.central_tab.setTabText(index, new_text)
         path = item.get_path()
         path[-1] = old_text
+        print(item.data['type'], "renamed")
         if self.elementsData.__contains__(id(item)) and item.data['type'] == "item":
             path1 = (CONTENT_FOLDER.replace("~", self.path) + "/" + "/".join(path)).format(
                 package=self.package) + self.elementsData[id(item)]['data']['end']
@@ -510,6 +518,8 @@ class EditorWindow(QMainWindow):
                 package=self.package)
             if os.path.exists(file+self.elementsData[id(item)]['data']['end']):
                 os.remove(file+self.elementsData[id(item)]['data']['end'])
+            if self.elementsData[id(item)]['tab'] is not None:
+                self.close_tab(self.elementsData[id(item)]['tab'])
             del self.elementsData[id(item)]
             self.saveElementsData()
         else:
@@ -547,11 +557,19 @@ class EditorWindow(QMainWindow):
 
         for key in self.elementsData.data:
             name = self.elementsData.data[key]['name']
-            cls: Content = LIST_TYPES.get(self.elementsData[name]['data']['content'])["type"][0](name)
-            cls.package = self.package+".content."+".".join(self.elementsData[name]['data']['path'].split("/"))
+            if self.elementsData[name]['tab'] is not None:
+                cls: Content = self.elementsData[name]['tab_content']["w2"].classe
+            else:
+                cls: Content = LIST_TYPES.get(self.elementsData[name]['data']['content'])['type'](-1, name)
+            pth = [_ for _ in self.elementsData[name]['data']['path'].split("/") if _.strip() != '']
+            print(pth, "pth")
+            if len(pth) > 0:
+                cls.package = self.package+".content."+".".join(pth)
+            else:
+                cls.package = self.package+".content"
             codes = cls.create_java_code()
             imports += f"{codes[0]}\n"
-            var = "    public "+cls.name+" var_"+name.strip()+";"
+            var = "    public "+cls.name[1]+" var_"+name.strip()+";"
             variabeles += var+"\n"
             inits.append( f"        this."+"var_"+name.strip()+" = "+codes[1])
         inits = "\n".join(inits)
@@ -697,18 +715,25 @@ public class initScript {{
         if content in LIST_TYPES:
             canvas: PreviewWidget = LIST_TYPES.get(self.elementsData[id(item)]['data']['content'])['centralWidget']()
             editor_widget = TabbedCustomEditor(
-                classes=LIST_TYPES[content]["type"],
-                changed_params=self.elementsData[id(item)]['data']['data'],
-                categories=LIST_TYPES[content]['paramCategory']
+                id=id(item),
+                name=item.text(0),
+                classe=LIST_TYPES[content]["type"],
+                changed_params=self.elementsData[id(item)]['data']['data']
             )
-            for custom in LIST_TYPES[content]['customParam']:
-                editor_widget.register_custom_widget(custom, LIST_TYPES[content]['customParam'][custom])
-            editor_widget.pack()
-            editor_widget.saveFromSelf.connect(self.saveFromSelf)
+            # for custom in LIST_TYPES[content]['customParam']:
+            #     editor_widget.register_custom_widget(custom, LIST_TYPES[content]['customParam'][custom])
+
             right_widget = editor_widget
-        else:
-            canvas = QLabel('Unknown content type')
-            right_widget = QLabel("Unknown type")
+
+            self.right_content.addWidget(right_widget)
+            self.create_tab(canvas, right_widget, item)
+
+            right_widget.pack()
+            right_widget.saveFromSelf.connect(self.saveFromSelf)
+            return
+
+        canvas = QLabel('Unknown content type')
+        right_widget = QLabel("Unknown type")
 
         self.right_content.addWidget(right_widget)
         self.create_tab(canvas, right_widget, item)
@@ -724,7 +749,7 @@ public class initScript {{
 
                 self.saveElementsData()
 
-                cls: Content = widget.classes[0](item_text)
+                cls: Content = widget.classe
                 cls.loadFromDict(data)
 
                 pkg = [self.package + ".content"] + tab["item"].get_path()[:-1]
@@ -751,6 +776,7 @@ public class initScript {{
             "item": item,
             "index": index
         }
+        ALL_TABS[id(item)] = (w1, w2, item)
         self.elementsData[id(item)]["tab"] = index
         self.set_index_tab(index)
         self.set_right_panel_content(w2)
@@ -758,13 +784,16 @@ public class initScript {{
     def close_tab(self, index):
         for el in self.elementsData.data:
             data = self.elementsData.data[el]
-            if data["tab"] == index:
+            w1 = self.central_tab.widget(index)
+            if data.get("tab_content", {}).get("w1") == w1 and w1 is not None:
                 tab = data["tab_content"]
                 tab["w1"].deleteLater()
                 tab["w2"].deleteLater()
                 data["tab_content"] = {}
                 data["tab"] = None
+                del ALL_TABS[id(data["item"])]
                 self.central_tab.removeTab(index)
+                return
 
     def change_tab(self, index):
         key = self.central_tab.tabText(index)
@@ -792,26 +821,3 @@ public class initScript {{
         }
         self.saveRequested.emit(save_data)
         self.closeSignal.emit(event, self.notExitOnLauncher)
-
-
-if __name__ == '__main__':
-    import sys
-
-    app = QApplication(sys.argv)
-
-
-    def handle_save(data):
-        print("Save data:", data)
-
-
-    window = EditorWindow("")
-    window.saveRequested.connect(handle_save)
-
-    example_settings = {
-        'splitter_sizes': [250, 800, 300],
-        'window_geometry': '...'
-    }
-    window.apply_settings(example_settings)
-
-    window.show()
-    sys.exit(app.exec())
