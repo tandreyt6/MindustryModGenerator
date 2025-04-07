@@ -7,5 +7,5 @@ class PreviewWidget(CentAbsWidget, CanvasWidget):
         super(CentAbsWidget).__init__()
         super(CanvasWidget).__init__()
         super().__init__()
-        self.scene_rect.setWidth(5000)
-        self.scene_rect.setHeight(5000)
+        self.scene_rect.setWidth(3000)
+        self.scene_rect.setHeight(3000)

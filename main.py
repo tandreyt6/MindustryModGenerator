@@ -12,12 +12,14 @@ from PyQt6.QtCore import *
 from PyQt6.QtGui import *
 
 import UI as UI2
+from func.Types import Content as ContentAbstract
 from UI.Content import CacheLayer, SoundSelect
 from UI.Elements.CardConstructor import CustomNoneClass
 from UI.Elements.CreateDialog import ProjectDialog
 from UI.Elements.FloatSpinBox import FloatSpinBox
 from UI.Elements.SettingsWindow import SettingsWindow
 from UI.Elements.SoundSelectBox import SoundSelectWidget
+from UI.ContentFormat import uiMethods
 from UI.Style import dark_style, light_style
 from UI.Window.Editor import EditorWindow
 from UI.Window.Launcher import LauncherWindow
@@ -77,11 +79,14 @@ class Main:
                     continue
                 gl = globals()
                 pluginDict = {
+                    "os": gl["os"],
                     "UI2": gl["UI2"],
-                    "Main": gl["Main"],
+                    "Main": gl["win"],
                     "PyQt6": gl["PyQt6"],
                     "memory": gl["memory"],
+                    "Content": gl["ContentAbstract"],
                     "settings": gl["settings"],
+                    "uiMethods": gl['uiMethods'],
                     "FloatSpinBox": gl["FloatSpinBox"],
                     "DynamicImporter": gl["DynamicImporter"],
                     "CustomNoneClass": gl["CustomNoneClass"],
@@ -165,7 +170,7 @@ class Main:
 app = QApplication([])
 
 app.setStyleSheet(dark_style)
-
+win = None
 win = Main()
 
 while memory.get("appIsRunning", False):

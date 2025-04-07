@@ -1,5 +1,5 @@
 from UI.ContentFormat import Format
-from UI.Elements.CardConstructor import BaseCustomWidget
+from UI.Elements.BaseCustomWidget import BaseCustomWidget
 from PyQt6.QtWidgets import QLineEdit
 from func.GLOBAL import SOUND_TYPES_NOLOAD
 

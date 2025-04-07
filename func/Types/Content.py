@@ -20,3 +20,9 @@ class Content:
 
     def loadFromDict(self, data: dict):
         pass
+
+    def get_custom_tabs(self):
+        return []
+
+    def saveEvent(self):
+        pass

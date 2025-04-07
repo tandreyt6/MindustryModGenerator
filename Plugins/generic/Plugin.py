@@ -17,7 +17,7 @@ class Plugin:
 
     def getContent(self):
         return {
-            "wall": {"displayName": "Wall", "plugin": "generic", "type": [Wall, Block], "end": ".java", "centralWidget": UI2.Content.CentralPreviewWidget.PreviewWidget}
+            "wall": {"displayName": "Wall", "plugin": "generic", "type": Wall, "end": ".java", "centralWidget": UI2.Content.CentralPreviewWidget.PreviewWidget}
         }
 
     def getStructuresMod(self):
