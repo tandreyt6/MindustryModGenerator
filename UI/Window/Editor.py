@@ -1,6 +1,7 @@
 import json
 import os.path
 import shutil
+import time
 import uuid
 from typing import List
 
@@ -350,6 +351,8 @@ class EditorWindow(QMainWindow):
         self.package = self.data.get("main", "example.javaMod").split(".")[0]
         self.init_ui()
 
+        self.setActionLabel("Mod has been loaded!")
+
 
     def handle_rename_validation(self, old_name, new_name, item):
         if not new_name.strip():
@@ -407,10 +410,22 @@ class EditorWindow(QMainWindow):
         self.central_widget = QWidget()
         self.v = QVBoxLayout(self.central_widget)
         self.v.setContentsMargins(0, 0, 0, 0)
+        self.v.setSpacing(2)
         self.setCentralWidget(self.central_widget)
 
         self.splitter = QSplitter()
         self.v.addWidget(self.splitter)
+
+        self.actionPanel = QWidget()
+        self.actionPanel.setObjectName("ActionPanel")
+        self.actionPanel.setFixedHeight(25)
+        self.actionLayout = QHBoxLayout(self.actionPanel)
+        self.actionLayout.setContentsMargins(5, 1, 5, 1)
+        self.lastActionLabel = QLabel()
+        self.lastActionLabel.setObjectName("ActionPanelContent")
+        self.actionLayout.addWidget(self.lastActionLabel)
+        self.actionLayout.addStretch()
+        self.v.addWidget(self.actionPanel)
 
         self.tree = TreeWidget()
         self.tree.itemRenamed.connect(self.handle_rename_item)
@@ -425,6 +440,7 @@ class EditorWindow(QMainWindow):
         self.right_panel = QScrollArea()
         self.right_panel.setWidgetResizable(True)
         self.right_content = QStackedWidget()
+        self.right_content.setObjectName("rightPanelStack")
         self.right_panel.setWidget(self.right_content)
         self.splitter.addWidget(self.right_panel)
 
@@ -442,6 +458,9 @@ class EditorWindow(QMainWindow):
 
         self.loadDirsForContent(CONTENT_FOLDER.replace("~", self.path).format(package=self.package))
         self.loadElementsFromFile()
+
+    def setActionLabel(self, text: str):
+        self.lastActionLabel.setText(time.strftime("[%H:%M:%S] ")+text)
 
     def ShowModFolder(self):
         os.startfile(self.path)
@@ -634,6 +653,7 @@ public class initScript {{
             })
             self.saveElementsData()
             print(self.elementsData.data)
+            self.setActionLabel(f"Item {dil.name_edit.text()} has been created to {'/'.join(item.get_path())}")
 
     def createDirectory(self, item):
         index = 0
@@ -677,7 +697,9 @@ public class initScript {{
             try:
                 with open(path, "r", encoding="utf-8") as e:
                     data = json.load(e)
+                    print(data)
                     for name in data:
+                        print("load name...")
                         path = data[name]["path"].split("/")
                         path.append(name)
                         item = self.add_item_from_name(name, path)
@@ -761,6 +783,8 @@ public class initScript {{
                     e.write(cls.java_code())
 
                 self.saveInitScript()
+
+                self.setActionLabel(f"Item {item_text} has been saved!")
 
                 return True
         return False

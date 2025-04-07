@@ -1,5 +1,5 @@
-from Plugins.generic.Block import Block
-from generic import UI2
+from .Block import Block
+from generic import UI
 from generic import PyQt6
 from generic import uiMethods
 from generic import Main
@@ -11,16 +11,9 @@ QtWidgets = PyQt6.QtWidgets
 QtCore = PyQt6.QtCore
 QtGui = PyQt6.QtGui
 
-CacheLayer = UI2.Content.CacheLayer
-SoundSelect = UI2.Content.SoundSelect
-saveMode = UI2.ContentFormat.saveMode
-
-if False:  # for IDE
-    import os
-    from UI.Content import CacheLayer, SoundSelect
-    import UI.ContentFormat.saveMode as saveMode
-    from PyQt6 import QtWidgets, QtCore, QtGui
-    from UI.ContentFormat import uiMethods
+CacheLayer = UI.Content.CacheLayer
+SoundSelect = UI.Content.SoundSelect
+saveMode = UI.ContentFormat.saveMode
 
 
 class Wall(Block, ContentAbstract):

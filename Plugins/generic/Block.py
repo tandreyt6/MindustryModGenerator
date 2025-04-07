@@ -1,9 +1,9 @@
 import json
-from generic import UI2
+from generic import UI
 
-CacheLayer = UI2.Content.CacheLayer
-SoundSelect = UI2.Content.SoundSelect
-saveMode = UI2.ContentFormat.saveMode
+CacheLayer = UI.Content.CacheLayer
+SoundSelect = UI.Content.SoundSelect
+saveMode = UI.ContentFormat.saveMode
 
 if False: # for IDE
     from UI.Content import CacheLayer, SoundSelect

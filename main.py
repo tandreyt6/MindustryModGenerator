@@ -2,8 +2,12 @@ import sys
 import os
 import time
 import zipfile
+from collections import deque
+
 import hjson
 import json
+
+import func.MmgApi.Plugins
 import func.memory as memory
 
 import PyQt6
@@ -23,7 +27,7 @@ from UI.ContentFormat import uiMethods
 from UI.Style import dark_style, light_style
 from UI.Window.Editor import EditorWindow
 from UI.Window.Launcher import LauncherWindow
-from func import settings
+from func import settings, MmgApi
 from func.GLOBAL import LIST_TYPES, LIST_MOD_TEMPLATES
 from func.PluginLoader import DynamicImporter
 
@@ -36,18 +40,16 @@ class Main:
 
         self.projects: list = settings.get_data("recent", [])
 
+        self.pluginData = {}
         self.loadedPlugins = {}
-        self.disabledPlugins = settings.get_data("disabledPlugins", [])
         self.loadPlugins()
+        func.MmgApi.Plugins.Plugins = func.MmgApi.Plugins.PluginLoader(self.loadedPlugins)
         self.initContent()
         self.initTemplates()
 
         self.editor = None
-        data = {}
-        for _ in self.loadedPlugins:
-            data[_ + "  (loaded)"] = {"icon": "./Plugins/" + _ + "/icon.png",
-                                      "description": self.loadedPlugins[_].getDescription()}
-        self.settingsWindow = SettingsWindow(data)
+
+        self.settingsWindow = SettingsWindow(self.pluginData)
         self.launcher_window = LauncherWindow()
         self.launcher_window.create_project_clicked.connect(self.create_project)
         self.launcher_window.project_open_clicked.connect(self.select_project)
@@ -71,30 +73,141 @@ class Main:
         return [f for f in os.listdir(directory) if os.path.isdir(os.path.join(directory, f))]
 
     def loadPlugins(self):
+        def topological_sort(dependencies):
+            in_degree = {plugin: 0 for plugin in dependencies}
+            graph = {plugin: [] for plugin in dependencies}
+            reverse_graph = {plugin: [] for plugin in dependencies}
+
+            for plugin, deps in dependencies.items():
+                for dep in deps:
+                    graph[dep].append(plugin)
+                    in_degree[plugin] += 1
+                reverse_graph[plugin] = deps
+
+            queue = deque([p for p in in_degree if in_degree[p] == 0])
+            sorted_plugins = []
+
+            while queue:
+                node = queue.popleft()
+                sorted_plugins.append(node)
+                for neighbor in graph[node]:
+                    in_degree[neighbor] -= 1
+                    if in_degree[neighbor] == 0:
+                        queue.append(neighbor)
+
+            if len(sorted_plugins) != len(dependencies):
+                print("Error: Cyclic dependencies detected in plugins")
+                return []
+            return sorted_plugins
+
         folders = self.get_folders("./Plugins")
+        plugins = []
+        disabled_plugins = set()
+        available_plugins = set()
+
         for folder in folders:
-            if os.path.exists(os.getcwd() + "/Plugins/" + folder + "/Plugin.py"):
-                if folders in self.disabledPlugins:
-                    print("skip", folder, "because disabled!")
-                    continue
-                gl = globals()
-                pluginDict = {
-                    "os": gl["os"],
-                    "UI2": gl["UI2"],
-                    "Main": gl["win"],
-                    "PyQt6": gl["PyQt6"],
-                    "memory": gl["memory"],
-                    "Content": gl["ContentAbstract"],
-                    "settings": gl["settings"],
-                    "uiMethods": gl['uiMethods'],
-                    "FloatSpinBox": gl["FloatSpinBox"],
-                    "DynamicImporter": gl["DynamicImporter"],
-                    "CustomNoneClass": gl["CustomNoneClass"],
-                    "SoundSelectWidget": gl["SoundSelectWidget"],
-                }
-                loader = DynamicImporter(folder, os.getcwd() + "/Plugins/" + folder + "/Plugin.py", pluginDict)
-                module = loader.load_module()
-                self.loadedPlugins[folder] = module.Plugin(self)
+            plugin_dir = os.path.join("Plugins", folder)
+            json_path = os.path.join(plugin_dir, "plugin.json")
+
+            if not os.path.exists(json_path):
+                print(f"Plugin {folder} missing plugin.json, skipping")
+                continue
+
+            try:
+                with open(json_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+            except Exception as e:
+                print(f"Failed to load {folder}/plugin.json: {str(e)}")
+                continue
+
+            if not data.get("enabled", True):
+                print(f"Plugin {folder} is disabled")
+                disabled_plugins.add(folder)
+                continue
+
+            if "main" not in data:
+                print(f"Plugin {folder} has no 'main' entry, skipping")
+                continue
+
+            plugins.append((folder, data))
+            available_plugins.add(folder)
+
+        dependencies = {}
+        valid_plugins = []
+
+        for plugin_name, data in plugins:
+            deps = data.get("pluginDependence", [])
+            missing_deps = []
+
+            for dep in deps:
+                if dep not in available_plugins:
+                    missing_deps.append(dep)
+                elif dep in disabled_plugins:
+                    missing_deps.append(f"{dep} (disabled)")
+
+            if missing_deps:
+                print(f"Plugin {plugin_name} skipped. Missing dependencies: {', '.join(missing_deps)}")
+                continue
+
+            dependencies[plugin_name] = deps
+            valid_plugins.append((plugin_name, data))
+
+        load_order = topological_sort(dependencies)
+
+        if not load_order:
+            print("Failed to resolve plugin load order")
+            return
+
+        reserved_names = {
+            'os', 'UI2', 'Main', 'PyQt6', 'memory', 'Content',
+            'settings', 'uiMethods', 'FloatSpinBox', 'DynamicImporter',
+            'CustomNoneClass', 'SoundSelectWidget', 'MmgApi'
+        }
+
+        for plugin_name in load_order:
+            plugin_data = next((d for name, d in valid_plugins if name == plugin_name), None)
+            if not plugin_data:
+                continue
+
+            main_file = plugin_data["main"]
+            plugin_dir = os.path.join("Plugins", plugin_name)
+            main_path = os.path.join(plugin_dir, main_file)
+
+            if not os.path.exists(main_path):
+                print(f"Plugin {plugin_name} main file not found: {main_file}")
+                continue
+
+            gl = globals()
+            plugin_env = {
+                "MmgApi": MmgApi
+            }
+
+            for dep in dependencies[plugin_name]:
+                if dep in reserved_names:
+                    print(f"Name conflict! Plugin {plugin_name} requires reserved name: {dep}")
+                    break
+                if dep in plugin_env:
+                    print(f"Duplicate dependency name {dep} in plugin {plugin_name}")
+                    break
+                plugin_env[dep] = self.loadedPlugins[dep]
+            else:
+                try:
+                    sys.path.insert(0, plugin_dir)
+                    loader = gl['DynamicImporter'](plugin_name, main_path, plugin_env)
+                    module = loader.load_module()
+                    self.loadedPlugins[plugin_name] = module.Plugin(self)
+                    self.pluginData[plugin_name + "  (loaded)"] = {"icon": "./Plugins/" + plugin_name + "/icon.png",
+                                              "description": data.get("description") + "\n\nV" + data.get("version", "Not select")}
+                    print(f"Successfully loaded plugin: {plugin_name}")
+                except Exception as e:
+                    print(f"Failed to load plugin \"{plugin_name}\": {str(e)}")
+                    if plugin_name in self.loadedPlugins:
+                        del self.loadedPlugins[plugin_name]
+                finally:
+                    sys.path.remove(plugin_dir)
+                continue
+
+            print(f"Skipping plugin {plugin_name} due to dependency errors")
 
     def initContent(self):
         for plug in self.loadedPlugins:
@@ -106,7 +219,7 @@ class Main:
         for plug in self.loadedPlugins:
             t = self.loadedPlugins[plug].getStructuresMod()
             for template in t:
-                LIST_MOD_TEMPLATES[template+"  ("+plug+")"] = t[template]
+                LIST_MOD_TEMPLATES[template + "  (" + plug + ")"] = t[template]
 
     def load_recent(self):
         for i in self.projects:
@@ -167,13 +280,15 @@ class Main:
             QTimer.singleShot(200, self.launcher_window.show)
 
 
-app = QApplication([])
-
-app.setStyleSheet(dark_style)
 win = None
-win = Main()
 
-while memory.get("appIsRunning", False):
-    app.processEvents()
+if __name__ == "__main__":
+    app = QApplication([])
 
-app.exit(0)
+    app.setStyleSheet(dark_style)
+    win = Main()
+
+    while memory.get("appIsRunning", False):
+        app.processEvents()
+
+    app.exit(0)
