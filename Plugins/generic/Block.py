@@ -5,10 +5,6 @@ CacheLayer = UI.Content.CacheLayer
 SoundSelect = UI.Content.SoundSelect
 saveMode = UI.ContentFormat.saveMode
 
-if False: # for IDE
-    from UI.Content import CacheLayer, SoundSelect
-    import UI.ContentFormat.saveMode as saveMode
-
 class Block():
     def __init__(self, name="Block"):
         # <var name> = tuple(contentType(CustomWidgetType), defaultValue, group, isVisible, eventFilter, saveMode, showTitle, filterIndex)
@@ -176,10 +172,6 @@ class Block():
         self.nonOptionalConsumers = []
         self.updateConsumers = []
         self.consPower = None
-
-    def loadFromDict(self, a0: dict):
-        for i in a0:
-            setattr(self, i, a0[i])
 
     def get_changed_params(self):
         default = Block("Block")

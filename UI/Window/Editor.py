@@ -588,9 +588,9 @@ class EditorWindow(QMainWindow):
                 cls.package = self.package+".content"
             codes = cls.create_java_code()
             imports += f"{codes[0]}\n"
-            var = "    public "+cls.name[1]+" var_"+name.strip()+";"
+            var = "    public "+cls.get_java_class_name()+" var_"+cls.get_java_class_name().strip()+";"
             variabeles += var+"\n"
-            inits.append( f"        this."+"var_"+name.strip()+" = "+codes[1])
+            inits.append( f"        this."+"var_"+cls.get_java_class_name().strip()+" = "+codes[1])
         inits = "\n".join(inits)
         template = \
 f"""package {self.package};

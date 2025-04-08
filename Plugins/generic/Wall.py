@@ -1,3 +1,5 @@
+import json
+
 from .Block import Block
 from generic import UI
 from generic import PyQt6
@@ -63,6 +65,10 @@ class Wall(Block, ContentAbstract):
 
     def saveEvent(self):
         pass
+
+    def json_save(self):
+        changed = self.get_changed_params()
+        return json.dumps(changed, indent=2, default=str)
 
     def get_custom_tabs(self):
         if self._convas is None:
@@ -145,14 +151,14 @@ class Wall(Block, ContentAbstract):
                f"}}"
 
     def create_java_code(self):
-        print(self.package, self.name[1])
+        print(self.package, self.get_java_class_name())
         return [
-            f"import {self.package}.{self.name[1]};",
-            f"new {self.name[1]}();"
+            f"import {self.package}.{self.get_java_class_name()};",
+            f"new {self.get_java_class_name()}();"
         ]
 
     def _get_params(self, params):
         return "\n".join(params)
 
     def get_java_class_name(self):
-        return "Wall"
+        return self.name[1]

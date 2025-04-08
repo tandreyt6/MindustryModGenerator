@@ -1,0 +1,6 @@
+# Generated from: UI\Language.py
+from typing import Any, Optional, Union, Type, ClassVar
+from collections.abc import Callable, Coroutine
+
+class EN: ...
+class RU: ...
