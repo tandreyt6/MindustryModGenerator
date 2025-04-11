@@ -51,6 +51,9 @@ dark_style = """
         border-radius: 4px;
         background-color: #333333;
     }
+    #SplashTitle {
+        background: none;
+    }
     QScrollBar:vertical {
         border: 1px solid #555555;
         border-radius: 4px;

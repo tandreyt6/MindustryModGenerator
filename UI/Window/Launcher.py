@@ -7,6 +7,8 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtGui import QAction, QIcon, QPalette, QColor, QCursor, QPixmap
 
+from UI import Language
+
 
 class ProjectActionMenu(QMenu):
     action_triggered = pyqtSignal(str)
@@ -18,9 +20,9 @@ class ProjectActionMenu(QMenu):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
 
         actions = {
-            "open": "Открыть",
-            "open_dir": "Открыть папку",
-            "delete": "Удалить из списка"
+            "open": Language.Lang.Launcher.ActionsPanel.open,
+            "open_dir": Language.Lang.Launcher.ActionsPanel.open_dir,
+            "delete": Language.Lang.Launcher.ActionsPanel.delete
         }
 
         for action_id, text in actions.items():
@@ -106,17 +108,15 @@ class LauncherWindow(QMainWindow):
 
     def setup_toolbar_buttons(self, toolbar):
         self.settings_btn = QToolButton()
-        self.settings_btn.setIcon(QApplication.style().standardIcon(
-            QStyle.StandardPixmap.SP_FileDialogInfoView))
-        self.settings_btn.setToolTip("Настройки")
+        self.settings_btn.setText(Language.Lang.Launcher.ActionsPanel.settings)
         self.settings_btn.clicked.connect(self.settings_clicked)
 
         self.import_btn = QToolButton()
-        self.import_btn.setText("Импорт проекта")
+        self.import_btn.setText(Language.Lang.Launcher.ActionsPanel.imp_proj)
         self.import_btn.clicked.connect(self.import_project_clicked)
 
         self.create_btn = QToolButton()
-        self.create_btn.setText("Создать проект")
+        self.create_btn.setText(Language.Lang.Launcher.ActionsPanel.crt_proj)
         self.create_btn.clicked.connect(self.create_project_clicked)
 
         toolbar.addWidget(self.settings_btn)
@@ -158,11 +158,13 @@ class LauncherWindow(QMainWindow):
     def handle_delete_project(self, data):
         confirm = QMessageBox(
             QMessageBox.Icon.Question,
-            "Подтверждение удаления",
-            f"Удалить проект '{data.get('name', '')}' из списка?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            Language.Lang.Launcher.Dialog.confirm_action,
+            Language.Lang.Launcher.Dialog.delete_project_from_list.format(name=data.get('name', '')),
+            QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.No,
             self
         )
+        confirm.button(QMessageBox.StandardButton.Ok).setText(Language.Lang.Launcher.Dialog.act_del_from_project_list)
+        confirm.button(QMessageBox.StandardButton.No).setText(Language.Lang.Launcher.Dialog.cancel)
 
         if confirm.exec() == QMessageBox.StandardButton.Yes:
             self.remove_project(data)
