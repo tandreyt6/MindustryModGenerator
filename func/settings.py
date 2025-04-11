@@ -13,6 +13,9 @@ def get_data(key, d=None):
 
 def load():
     global data
-    if not os.path.exists("AppSettings.json"): return
-    with open("AppSettings.json", "r", encoding="utf-8") as file:
-        data = json.load(file)
+    try:
+        if not os.path.exists("AppSettings.json"): return
+        with open("AppSettings.json", "r", encoding="utf-8") as file:
+            data = json.load(file)
+    except:
+        data = {}

@@ -1,8 +1,10 @@
 import json
 import os.path
 import shutil
+import threading
 import time
 import uuid
+from threading import Thread
 from typing import List
 
 import hjson
@@ -10,11 +12,16 @@ from PyQt6.QtWidgets import *
 from PyQt6.QtCore import *
 from PyQt6.QtGui import *
 
+import main
+from GradlewManager import GradleWrapper
+from UI import Language
 from UI.Content.CentralPreviewWidget import PreviewWidget
-from UI.ContentFormat import ALL_TABS
+from UI.ContentFormat import ALL_TABS, PanelsPos
 from UI.Elements.CardConstructor import TabbedCustomEditor
 from UI.Elements.CreateElementDialog import CreateElementDialog
 from UI.Elements.DragTab import DraggableTabWidget
+from UI.Elements.SplashDil import SplashDil
+from func import settings, memory
 from func.GLOBAL import CONTENT_FOLDER, LIST_TYPES
 from func.Types.Content import Content
 
@@ -248,19 +255,19 @@ class TreeWidget(QTreeWidget):
         menu = QMenu(self)
         open_action = None
         if item:
-            open_action = menu.addAction("Open")
+            open_action = menu.addAction(Language.Lang.Editor.ActionPanel.open)
         rename_action = None
         if item and 'NoChange' not in item.data.get('flag', []):
-            rename_action = menu.addAction("Rename")
+            rename_action = menu.addAction(Language.Lang.Editor.ActionPanel.rename)
         delete_action = None
         if item and 'NoDelete' not in item.data.get('flag', []):
-            delete_action = menu.addAction("Delete")
+            delete_action = menu.addAction(Language.Lang.Editor.ActionPanel.delete)
         create_category = None
         if not item or (item and item.data.get("type", "") == "category"):
-            create_category = menu.addAction("Create Category")
+            create_category = menu.addAction(Language.Lang.Editor.ActionPanel.create_category)
         create_element = None
         if not item or (item and item.data.get("type", "") == "category"):
-            create_element = menu.addAction("Create Item")
+            create_element = menu.addAction(Language.Lang.Editor.ActionPanel.create_item)
 
         action = menu.exec(event.globalPos())
 
@@ -339,30 +346,35 @@ class EditorWindow(QMainWindow):
     closeSignal = pyqtSignal(object, bool)
     settingsWindowRequest = pyqtSignal()
 
-    def __init__(self, path):
+    def __init__(self, main, data):
         super().__init__()
         self.elementsData = ElementsDict()
-        self.path = path
+        self.path = data.get("path")
+        self.main = main
+        self.launcherData = data
+        try:
+            self.gradlewManager = GradleWrapper(self.path)
+        except: self.gradlewManager = None
         self.data = {}
         self.notExitOnLauncher = True
-        if path:
-            with open(os.path.join(path, "mod.hjson"), "r", encoding="utf-8") as e:
+        if data.get("path"):
+            with open(os.path.join(data.get("path"), "mod.hjson"), "r", encoding="utf-8") as e:
                 self.data = hjson.load(e)
         self.package = self.data.get("main", "example.javaMod").split(".")[0]
         self.init_ui()
 
-        self.setActionLabel("Mod has been loaded!")
-
-
     def handle_rename_validation(self, old_name, new_name, item):
         if not new_name.strip():
-            QMessageBox.warning(self, "Error", "Name cannot be empty")
+            QMessageBox.warning(self, Language.Lang.Editor.Dialog.error,
+                                Language.Lang.Editor.Dialog.name_empty_warn)
             return False
         if len(new_name) < 3:
-            QMessageBox.warning(self, "Error", "Name is long!")
+            QMessageBox.warning(self, Language.Lang.Editor.Dialog.error,
+                                Language.Lang.Editor.Dialog.name_is_long_warn)
             return False
         if new_name[0].isdigit():
-            QMessageBox.warning(self, "Error", "The first character should not be a digit")
+            QMessageBox.warning(self, Language.Lang.Editor.Dialog.error,
+                                Language.Lang.Editor.Dialog.name_first_word_isDigit_warn)
             return False
         items = [_ for _ in self.tree.find_child_by_text(item.parent(), new_name) if _.data.get("type") != "category"]
         folders = [_ for _ in self.tree.find_child_by_text(item.parent(), new_name) if _.data.get("type") == "category"]
@@ -370,19 +382,24 @@ class EditorWindow(QMainWindow):
         print(folders)
         path = item.get_path()
         path[-1] = new_name
-        if ((len(items)>1 or len(items)>0 and items[0] != item) and item.data.get("type") != "category") \
+        if ((len(items) > 1 or len(items) > 0 and items[0] != item) and item.data.get("type") != "category") \
                 or (item.data.get("type") == "category" and any(_.get_path() == path for _ in folders)):
-            QMessageBox.warning(self, "Error", "This name is already exist")
+            QMessageBox.warning(self, Language.Lang.Editor.Dialog.error,
+                                Language.Lang.Editor.Dialog.name_exist_item)
             return False
         if new_name in self.elementsData and item.data.get("type") != "category":
-            QMessageBox.warning(self, "Error", "This name is already exist")
+            QMessageBox.warning(self, Language.Lang.Editor.Dialog.error,
+                                Language.Lang.Editor.Dialog.name_exist_item)
             return False
-        if item.data.get("type") != "category" and self.elementsData[old_name]['item'] != id(item) and new_name in self.elementsData.key_map:
-            QMessageBox.warning(self, "Error", "Name must be unique")
+        if item.data.get("type") != "category" and self.elementsData[old_name]['item'] != id(
+                item) and new_name in self.elementsData.key_map:
+            QMessageBox.warning(self, Language.Lang.Editor.Dialog.error,
+                                Language.Lang.Editor.Dialog.name_exist_item)
             return False
         return True
 
     def init_ui(self):
+
         self.setWindowTitle(self.data.get("displayName", "") + " - Editor")
         if self.path:
             QApplication.setWindowIcon(QIcon(os.path.join(self.path, "icon.png")))
@@ -390,22 +407,88 @@ class EditorWindow(QMainWindow):
 
         menubar = self.menuBar()
 
-        FileMenu:QMenu = menubar.addMenu('File')
+        FileMenu: QMenu = menubar.addMenu(Language.Lang.Editor.ActionPanel.file)
 
-        self.settingsAct = QAction("Settings...")
+        self.projectSettingsAct = QAction(Language.Lang.Editor.ActionPanel.project_settings)
+        self.projectSettingsAct.triggered.connect(self.openProjectSettings)
+        self.settingsAct = QAction(Language.Lang.Editor.ActionPanel.settings)
         self.settingsAct.triggered.connect(self.settingsWindowRequest.emit)
-        FileMenu.addAction(self.settingsAct)
-        self.openModFolder = QAction("Show project folder")
+        self.openModFolder = QAction(Language.Lang.Editor.ActionPanel.show_project_folder)
         self.openModFolder.triggered.connect(self.ShowModFolder)
+        self.exitOnLauncherAct = QAction(Language.Lang.Editor.ActionPanel.exit_project)
+        self.exitOnLauncherAct.triggered.connect(self.exitOnLauncher)
+        self.exitOnProgram = QAction(Language.Lang.Editor.ActionPanel.exit)
+        self.exitOnProgram.triggered.connect(self.close)
+
+        FileMenu.addAction(self.projectSettingsAct)
         FileMenu.addAction(self.openModFolder)
         FileMenu.addSeparator()
-        self.exitOnLauncherAct = QAction("Exit project")
-        self.exitOnLauncherAct.triggered.connect(self.exitOnLauncher)
+        FileMenu.addAction(self.settingsAct)
+        FileMenu.addSeparator()
         FileMenu.addAction(self.exitOnLauncherAct)
+        FileMenu.addAction(self.exitOnProgram)
 
-        menubar.addMenu('View')
-        menubar.addMenu('Build')
-        menubar.addMenu('Gradle')
+        ViewMenu: QMenu = menubar.addMenu(Language.Lang.Editor.ActionPanel.view)
+
+        self.setPosPanelsSelect = QMenu(Language.Lang.Editor.ActionPanel.menu_pos_panels)
+        self.setPosPanelsAct1 = QAction(Language.Lang.Editor.ActionPanel.menu_pos1_panels)
+        self.setPosPanelsAct1.triggered.connect(lambda: self.setPosForPanels(PanelsPos.Left_Right))
+        self.setPosPanelsAct2 = QAction(Language.Lang.Editor.ActionPanel.menu_pos2_panels)
+        self.setPosPanelsAct2.triggered.connect(lambda: self.setPosForPanels(PanelsPos.Right_Left))
+        self.setPosPanelsAct3 = QAction(Language.Lang.Editor.ActionPanel.menu_pos3_panels)
+        self.setPosPanelsAct3.triggered.connect(lambda: self.setPosForPanels(PanelsPos.Left_left))
+        self.setPosPanelsAct4 = QAction(Language.Lang.Editor.ActionPanel.menu_pos4_panels)
+        self.setPosPanelsAct4.triggered.connect(lambda: self.setPosForPanels(PanelsPos.left_Left))
+        self.setPosPanelsAct5 = QAction(Language.Lang.Editor.ActionPanel.menu_pos5_panels)
+        self.setPosPanelsAct5.triggered.connect(lambda: self.setPosForPanels(PanelsPos.Right_right))
+        self.setPosPanelsAct6 = QAction(Language.Lang.Editor.ActionPanel.menu_pos6_panels)
+        self.setPosPanelsAct6.triggered.connect(lambda: self.setPosForPanels(PanelsPos.right_Right))
+
+        ViewMenu.addMenu(self.setPosPanelsSelect)
+        self.setPosPanelsSelect.addAction(self.setPosPanelsAct1)
+        self.setPosPanelsSelect.addAction(self.setPosPanelsAct2)
+        self.setPosPanelsSelect.addAction(self.setPosPanelsAct3)
+        self.setPosPanelsSelect.addAction(self.setPosPanelsAct4)
+        self.setPosPanelsSelect.addAction(self.setPosPanelsAct5)
+        self.setPosPanelsSelect.addAction(self.setPosPanelsAct6)
+
+        buildMenu = menubar.addMenu(Language.Lang.Editor.ActionPanel.gradle)
+        testMenu = menubar.addMenu(Language.Lang.Editor.ActionPanel.test)
+
+        self.lastActionLabel = QLabel()
+
+        if self.gradlewManager is None:
+            buildMenu.setEnabled(False)
+            testMenu.setEnabled(False)
+            buildMenu.setToolTip(Language.Lang.Editor.ToolTip.gradleMenu_noloaded)
+            self.setActionLabel(Language.Lang.Editor.ToolTip.gradleMenu_noloaded)
+        else:
+            d = []
+            def load(d):
+                suc, ver = self.gradlewManager.get_version()
+                d.append(suc)
+                d.append(ver)
+            splashDil = SplashDil()
+            splashDil.setFixedWidth(190)
+            splashDil.text.setText("load Gradle...")
+            splashDil.cancel.clicked.connect(splashDil.close)
+            splashDil.show()
+            x = threading.Thread(target=load, args=(d,), daemon=True)
+            x.start()
+            while x.is_alive():
+                QApplication.processEvents()
+            suc, ver = d
+            if not suc:
+                buildMenu.setEnabled(False)
+                buildMenu.setToolTip(Language.Lang.Editor.ToolTip.gradleMenu_noloaded)
+                self.setActionLabel(Language.Lang.Editor.ToolTip.gradleMenu_noloaded+ver)
+            else:
+                buildMenu.setToolTip(Language.Lang.Editor.ToolTip.gradleMenu_loaded)
+                self.setActionLabel(Language.Lang.Editor.ToolTip.gradleMenu_loaded)
+            self.BuildAct = QAction(Language.Lang.Editor.ActionPanel.build_project)
+            self.BuildAct.triggered.connect(self.buildTask)
+            buildMenu.addAction(self.BuildAct)
+
 
         self.central_widget = QWidget()
         self.v = QVBoxLayout(self.central_widget)
@@ -421,7 +504,6 @@ class EditorWindow(QMainWindow):
         self.actionPanel.setFixedHeight(25)
         self.actionLayout = QHBoxLayout(self.actionPanel)
         self.actionLayout.setContentsMargins(5, 1, 5, 1)
-        self.lastActionLabel = QLabel()
         self.lastActionLabel.setObjectName("ActionPanelContent")
         self.actionLayout.addWidget(self.lastActionLabel)
         self.actionLayout.addStretch()
@@ -429,20 +511,22 @@ class EditorWindow(QMainWindow):
 
         self.tree = TreeWidget()
         self.tree.itemRenamed.connect(self.handle_rename_item)
-        self.splitter.addWidget(self.tree)
+        # self.splitter.addWidget(self.tree)
 
         self.central_tab = DraggableTabWidget()
         self.central_tab.setTabsClosable(True)
         self.central_tab.tabCloseRequested.connect(self.close_tab)
         self.central_tab.currentChanged.connect(self.change_tab)
-        self.splitter.addWidget(self.central_tab)
+        # self.splitter.addWidget(self.central_tab)
 
-        self.right_panel = QScrollArea()
-        self.right_panel.setWidgetResizable(True)
+        self.settings_panel = QScrollArea()
+        self.settings_panel.setWidgetResizable(True)
         self.right_content = QStackedWidget()
         self.right_content.setObjectName("rightPanelStack")
-        self.right_panel.setWidget(self.right_content)
-        self.splitter.addWidget(self.right_panel)
+        self.settings_panel.setWidget(self.right_content)
+        # self.splitter.addWidget(self.settings_panel)
+
+        self.setPosForPanels(settings.get_data("panPos", 0))
 
         self.tree.openRequested.connect(self.handle_open)
         self.tree.renameRequested.connect(self.handle_rename)
@@ -459,8 +543,106 @@ class EditorWindow(QMainWindow):
         self.loadDirsForContent(CONTENT_FOLDER.replace("~", self.path).format(package=self.package))
         self.loadElementsFromFile()
 
+    def buildTask(self):
+        def start():
+            dil.text.setText(Language.Lang.Editor.Dialog.start_task.format(name="Clean"))
+            suc, msg = self.gradlewManager.clean()
+            if suc:
+                dil.text.setText(Language.Lang.Editor.Dialog.start_task.format(name="Build"))
+                suc, msg = self.gradlewManager.build(["--warning-mode=all", "--debug"])
+            memory.put("lastBuildMsg", (suc, msg))
+        self.setActionLabel(Language.Lang.Editor.Dialog.start_task.format(name="Build"))
+        dil = SplashDil()
+        dil.setFixedSize(300, 120)
+        dil.show()
+        thr = Thread(target=start, daemon=True)
+        thr.start()
+        while thr.is_alive():
+            QApplication.processEvents()
+        dil.hide()
+        if memory.get("lastBuildMsg")[0]:
+            QMessageBox.information(self, Language.Lang.Editor.Dialog.successful,
+                                    Language.Lang.Editor.Dialog.build_successful)
+        else:
+            QMessageBox.information(self, Language.Lang.Editor.Dialog.error, memory.get("lastBuildMsg")[1])
+
+
+
+    def openProjectSettings(self):
+        plugin = self.launcherData.get("plugin", None)
+        if plugin:
+            self.main.loadedPlugins[plugin[0]].getDialogSettings(self.launcherData)
+        else:
+            if len(list(self.main.loadedPlugins.keys())) == 0:
+                QMessageBox.warning(self, Language.Lang.Editor.Dialog.error,
+                                    Language.Lang.Editor.Dialog.save_select)
+                return
+            dil = QDialog(self)
+
+            def save():
+                dil.close()
+                self.main.loadedPlugins[combo.currentText()].getDialogSettings(self.launcherData)
+                if isSave.isChecked():
+                    self.launcherData['plugin'] = [combo.currentText(), None]
+                    settings.save_data('recent', self.main.projects)
+
+            v = QVBoxLayout(dil)
+            isSave = QCheckBox()
+            isSave.setText(Language.Lang.Editor.Dialog.save_select)
+            combo = QComboBox()
+            combo.addItems(list(self.main.loadedPlugins.keys()))
+            saveBtn = QPushButton(Language.Lang.Editor.Dialog.apply)
+            saveBtn.clicked.connect(save)
+            saveBtn.setDefault(True)
+            cancel = QPushButton(Language.Lang.Editor.Dialog.cancel)
+            cancel.clicked.connect(dil.close)
+            v.addWidget(QLabel(Language.Lang.Editor.Dialog.select_plugin))
+            v.addWidget(combo)
+            v.addWidget(isSave)
+            h0 = QHBoxLayout()
+            h0.addWidget(cancel)
+            h0.addWidget(saveBtn)
+            v.addLayout(h0)
+
+            dil.exec()
+
+    def setPosForPanels(self, pos: PanelsPos):
+        widgets_order = [self.splitter.widget(i) for i in range(self.splitter.count())]
+        sizes_dict = {widget: size for widget, size in zip(widgets_order, self.splitter.sizes())}
+
+        if pos == PanelsPos.Right_Left:
+            self.splitter.insertWidget(0, self.settings_panel)
+            self.splitter.insertWidget(1, self.central_tab)
+            self.splitter.insertWidget(2, self.tree)
+        elif pos == PanelsPos.Left_left:
+            self.splitter.insertWidget(0, self.tree)
+            self.splitter.insertWidget(1, self.settings_panel)
+            self.splitter.insertWidget(2, self.central_tab)
+        elif pos == PanelsPos.left_Left:
+            self.splitter.insertWidget(0, self.settings_panel)
+            self.splitter.insertWidget(1, self.tree)
+            self.splitter.insertWidget(2, self.central_tab)
+        elif pos == PanelsPos.Right_right:
+            self.splitter.insertWidget(0, self.central_tab)
+            self.splitter.insertWidget(1, self.tree)
+            self.splitter.insertWidget(2, self.settings_panel)
+        elif pos == PanelsPos.right_Right:
+            self.splitter.insertWidget(0, self.central_tab)
+            self.splitter.insertWidget(1, self.settings_panel)
+            self.splitter.insertWidget(2, self.tree)
+        else:
+            self.splitter.insertWidget(0, self.tree)
+            self.splitter.insertWidget(1, self.central_tab)
+            self.splitter.insertWidget(2, self.settings_panel)
+
+        settings.save_data("panPos", pos)
+
+        new_widgets_order = [self.splitter.widget(i) for i in range(self.splitter.count())]
+        new_sizes = [sizes_dict.get(widget, 100) for widget in new_widgets_order]
+        self.splitter.setSizes(new_sizes)
+
     def setActionLabel(self, text: str):
-        self.lastActionLabel.setText(time.strftime("[%H:%M:%S] ")+text)
+        self.lastActionLabel.setText(time.strftime("[%H:%M:%S] ") + text)
 
     def ShowModFolder(self):
         os.startfile(self.path)
@@ -502,18 +684,19 @@ class EditorWindow(QMainWindow):
             self.elementsData[new_text]['name'] = new_text
         self.saveElementsData()
 
-    def movedItem(self, item: TreeWidgetItem, oldParent: TreeWidgetItem|None):
-        oldPath = CONTENT_FOLDER.format(package=self.package).replace("~/", self.path+"/")+"/"+"/".join(item.get_path())+self.elementsData[id(item)]["data"]['end']
+    def movedItem(self, item: TreeWidgetItem, oldParent: TreeWidgetItem | None):
+        oldPath = CONTENT_FOLDER.format(package=self.package).replace("~/", self.path + "/") + "/" + "/".join(
+            item.get_path()) + self.elementsData[id(item)]["data"]['end']
         item.wParent = item.parent()
         path = item.get_path()
         path.pop(-1)
         self.elementsData[id(item)]["data"]["path"] = "/".join(path)
         self.saveElementsData()
-        full = CONTENT_FOLDER.format(package=self.package).replace("~/", self.path+"/")+"/"+"/".join(item.get_path())+self.elementsData[id(item)]["data"]['end']
+        full = CONTENT_FOLDER.format(package=self.package).replace("~/", self.path + "/") + "/" + "/".join(
+            item.get_path()) + self.elementsData[id(item)]["data"]['end']
         print(oldPath, "->", full)
         if os.path.exists(oldPath):
             os.rename(oldPath, full)
-
 
     def handle_open(self, item):
         if item.data.get('type') == 'category':
@@ -527,7 +710,8 @@ class EditorWindow(QMainWindow):
     def handle_delete(self, item: TreeWidgetItem, force=False):
         if item.data['type'] == "item":
             if not force:
-                reply = QMessageBox.question(self, 'Confirmation', 'Are you sure you want to proceed?',
+                reply = QMessageBox.question(self, Language.Lang.Editor.Dialog.confirm_action,
+                                             Language.Lang.Editor.Dialog.confirm_delete_item,
                                              QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
 
                 if reply != QMessageBox.StandardButton.Yes:
@@ -535,8 +719,8 @@ class EditorWindow(QMainWindow):
 
             file = (CONTENT_FOLDER.replace("~", self.path) + "/" + "/".join(item.get_path())).format(
                 package=self.package)
-            if os.path.exists(file+self.elementsData[id(item)]['data']['end']):
-                os.remove(file+self.elementsData[id(item)]['data']['end'])
+            if os.path.exists(file + self.elementsData[id(item)]['data']['end']):
+                os.remove(file + self.elementsData[id(item)]['data']['end'])
             if self.elementsData[id(item)]['tab'] is not None:
                 self.close_tab(self.elementsData[id(item)]['tab'])
             del self.elementsData[id(item)]
@@ -544,7 +728,8 @@ class EditorWindow(QMainWindow):
         else:
             if item.childCount() > 0:
                 if not force:
-                    reply = QMessageBox.question(self, 'Confirmation', 'Are you sure you want to proceed?',
+                    reply = QMessageBox.question(self, Language.Lang.Editor.Dialog.confirm_action,
+                                                 Language.Lang.Editor.Dialog.confirm_delete_item,
                                                  QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
                     if reply != QMessageBox.StandardButton.Yes:
                         return
@@ -583,17 +768,17 @@ class EditorWindow(QMainWindow):
             pth = [_ for _ in self.elementsData[name]['data']['path'].split("/") if _.strip() != '']
             print(pth, "pth")
             if len(pth) > 0:
-                cls.package = self.package+".content."+".".join(pth)
+                cls.package = self.package + ".content." + ".".join(pth)
             else:
-                cls.package = self.package+".content"
+                cls.package = self.package + ".content"
             codes = cls.create_java_code()
             imports += f"{codes[0]}\n"
-            var = "    public "+cls.get_java_class_name()+" var_"+cls.get_java_class_name().strip()+";"
-            variabeles += var+"\n"
-            inits.append( f"        this."+"var_"+cls.get_java_class_name().strip()+" = "+codes[1])
+            var = "    public " + cls.get_java_class_name() + " var_" + cls.get_java_class_name().strip() + ";"
+            variabeles += var + "\n"
+            inits.append(f"        this." + "var_" + cls.get_java_class_name().strip() + " = " + codes[1])
         inits = "\n".join(inits)
         template = \
-f"""package {self.package};
+            f"""package {self.package};
 
 {imports}
 
@@ -615,21 +800,23 @@ public class initScript {{
 
     def saveInitScript(self):
         text = self.generateImportJavaCode()
-        path = self.path+f"/src/{self.package}/initScript.java"
+        path = self.path + f"/src/{self.package}/initScript.java"
         print(path)
         with open(path, "w", encoding="utf-8") as e:
             e.write(text)
 
     def createItem(self, item: TreeWidgetItem | TreeWidget):
         def check():
-            items = [_ for _ in self.tree.find_child_by_text(item if isinstance(item, TreeWidgetItem) else None, dil.name_edit.text()) if
+            items = [_ for _ in self.tree.find_child_by_text(item if isinstance(item, TreeWidgetItem) else None,
+                                                             dil.name_edit.text()) if
                      _.data.get("type") != "category"]
             print(items)
             if len(items) > 1 or len(items) > 0 and items[0] != item:
-                QMessageBox.warning(self, "Error", "This name is already exist")
+                QMessageBox.warning(self, "Error", Language.Lang.Editor.Dialog.name_exist_item)
             elif dil.name_edit.text() in self.elementsData:
-                QMessageBox.warning(self, "Error", "This name is already exist")
-            else: dil.accept()
+                QMessageBox.warning(self, "Error", Language.Lang.Editor.Dialog.name_exist_item)
+            else:
+                dil.accept()
 
         print("Create Item at path:", item.get_path())
         dil = CreateElementDialog(item.get_path())
@@ -653,7 +840,8 @@ public class initScript {{
             })
             self.saveElementsData()
             print(self.elementsData.data)
-            self.setActionLabel(f"Item {dil.name_edit.text()} has been created to {'/'.join(item.get_path())}")
+            self.setActionLabel(Language.Lang.Editor.ActionPanel.item_has_been_created_path
+                                .format(name=dil.name_edit.text(), path='\'/' + '/'.join(item.get_path())) + '\'')
 
     def createDirectory(self, item):
         index = 0
@@ -677,22 +865,27 @@ public class initScript {{
         os.makedirs(folder, exist_ok=True)
 
     def getDirs(self, directory):
-        return [
-            os.path.join(directory, item)
-            for item in os.listdir(directory)
-            if os.path.isdir(os.path.join(directory, item))
-        ]
+        try:
+            return [
+                os.path.join(directory, item)
+                for item in os.listdir(directory)
+                if os.path.isdir(os.path.join(directory, item))
+            ]
+        except:
+            return []
 
     def loadDirsForContent(self, directory, fname=""):
-        folders = self.getDirs(directory+"/"+fname)
+        folders = self.getDirs(directory + "/" + fname)
         for name in folders:
-            name = name.replace(CONTENT_FOLDER.format(package=self.package).replace("~", self.path), "").replace("\\", "/").replace("//", "/")
+            name = name.replace(CONTENT_FOLDER.format(package=self.package).replace("~", self.path), "").replace("\\",
+                                                                                                                 "/").replace(
+                "//", "/")
             path = [_ for _ in name.split("/") if _ != ""]
             it = self.tree.add_item(path, {"type": "category", "flag": []})
             self.loadDirsForContent(directory, name)
 
     def loadElementsFromFile(self):
-        path = os.path.join(self.path, "elements.json")
+        path = os.path.join(self.path, "Elements.mmg_j")
         if os.path.exists(path):
             try:
                 with open(path, "r", encoding="utf-8") as e:
@@ -704,12 +897,13 @@ public class initScript {{
                         path.append(name)
                         item = self.add_item_from_name(name, path)
                         self.elementsData.add(name, "/".join(item.get_path()), id(item), {"data": data[name],
-                                                                                      "tab": None,
-                                                                                      "tab_content": {},
-                                                                                      "item": item,
-                                                                                      "name": name})
+                                                                                          "tab": None,
+                                                                                          "tab_content": {},
+                                                                                          "item": item,
+                                                                                          "name": name})
             except Exception as err:
-                QMessageBox.warning(self, "Error load saves!", "Load elements failed!\n"+str(err))
+                QMessageBox.warning(self, Language.Lang.Editor.Dialog.error,
+                                    Language.Lang.Editor.Dialog.error_load_elements_save.format(err=str(err)))
 
     def add_item_from_name(self, name: str, path: List[str]) -> TreeWidgetItem:
         path = [_ for _ in path if _.strip() != '']
@@ -721,7 +915,7 @@ public class initScript {{
         for el in self.elementsData.data:
             d = self.elementsData.data[el]
             data[d["name"]] = d["data"]
-        with open(self.path+"/elements.json", "w", encoding="utf-8") as e:
+        with open(self.path + "/Elements.mmg_j", "w", encoding="utf-8") as e:
             json.dump(data, e, indent=4)
 
     def handle_item_selected(self, item):
@@ -779,12 +973,13 @@ public class initScript {{
 
                 path = os.path.join(CONTENT_FOLDER.format(package=self.package), *pkg[1:]).replace("~", self.path)
                 os.makedirs(path, exist_ok=True)
-                with open(os.path.join(path, item_text + self.elementsData[item_text]['data']['end']), "w", encoding="utf-8") as e:
+                with open(os.path.join(path, item_text + self.elementsData[item_text]['data']['end']), "w",
+                          encoding="utf-8") as e:
                     e.write(cls.java_code())
 
                 self.saveInitScript()
 
-                self.setActionLabel(f"Item {item_text} has been saved!")
+                self.setActionLabel(Language.Lang.Editor.ActionPanel.item_has_been_saved.format(name=item_text))
 
                 return True
         return False

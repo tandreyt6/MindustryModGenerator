@@ -1,17 +1,10 @@
 import json
 
 from .Block import Block
-from generic import UI
-from generic import PyQt6
-from generic import uiMethods
-from generic import Main
-from generic import os
-from generic import Content
+from MmgApi.Libs import PyQt6, Content, os, Main, uiMethods, UI
+from PyQt6 import QtWidgets, QtGui, QtCore
 
-ContentAbstract = Content.Content
-QtWidgets = PyQt6.QtWidgets
-QtCore = PyQt6.QtCore
-QtGui = PyQt6.QtGui
+ContentAbstract = Content
 
 CacheLayer = UI.Content.CacheLayer
 SoundSelect = UI.Content.SoundSelect
@@ -62,6 +55,7 @@ class Wall(Block, ContentAbstract):
             self.lblSprite.setText(file_path)
             self._convas.view_scale = 0.3
             self._convas.update()
+
 
     def saveEvent(self):
         pass

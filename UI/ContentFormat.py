@@ -11,6 +11,14 @@ class saveMode:
     ifChanged = 1
     Force = 2
 
+class PanelsPos:
+    Left_Right = 0
+    Right_Left = 1
+    Right_right = 2
+    Left_left = 3
+    right_Right = 4
+    left_Left = 5
+
 ALL_TABS = {}
 
 class uiMethods:

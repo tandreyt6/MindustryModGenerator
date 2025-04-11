@@ -1,8 +1,17 @@
+import os
+import subprocess
+
 from PyQt6.QtWidgets import (QDialog, QHBoxLayout, QScrollArea, QWidget, QVBoxLayout,
                              QListWidget, QStackedWidget, QLabel, QSpacerItem,
-                             QSizePolicy, QFrame)
+                             QSizePolicy, QFrame, QFormLayout, QComboBox, QPushButton, QLineEdit, QMessageBox,
+                             QFileDialog)
 from PyQt6.QtGui import QPixmap, QCursor
 from PyQt6.QtCore import Qt, QPropertyAnimation, QEasingCurve, pyqtProperty
+
+from GradlewManager import GradleWrapper
+from UI import Language
+from UI.Language import Langs
+from func import settings, memory
 
 
 class PluginWidget(QWidget):
@@ -85,7 +94,7 @@ class SettingsWindow(QDialog):
 
         self.left_panel = QListWidget()
         self.left_panel.setFixedWidth(180)
-        self.left_panel.addItems(["General", "Plugins", "Code Editor", "Appearance"])
+        self.left_panel.addItems(["General", "Appearance", "Plugins", "Code Editor", "Java"])
         self.left_panel.currentRowChanged.connect(self.change_page)
         main_layout.addWidget(self.left_panel)
 
@@ -93,9 +102,10 @@ class SettingsWindow(QDialog):
         main_layout.addWidget(self.right_panel)
 
         self.right_panel.addWidget(self.create_general_page())
+        self.right_panel.addWidget(self.create_appearance_page())
         self.right_panel.addWidget(self.create_plugins_page())
         self.right_panel.addWidget(self.create_code_editor_page())
-        self.right_panel.addWidget(self.create_appearance_page())
+        self.right_panel.addWidget(self.create_gradle_page())
 
     def create_plugins_page(self):
         scroll_area = QScrollArea()
@@ -117,10 +127,31 @@ class SettingsWindow(QDialog):
         scroll_area.setWidget(container)
         return scroll_area
 
+    def selectLangEvent(self):
+        lang = list(Langs.keys())[self.langSelect.currentIndex()]
+        settings.save_data("lang", lang)
+        self.changeWarn(Langs[lang][1])
+
+    def changeWarn(self, lang):
+        self.needRestartTitle.setText(lang.Settings.General.needRestart)
+        self.needRestartTitle.setVisible(True)
+
     def create_general_page(self):
-        page = QWidget()
-        layout = QVBoxLayout(page)
-        layout.addWidget(QLabel("General Settings"))
+        page = QScrollArea()
+        widget = QWidget()
+        page.setWidget(widget)
+        page.setWidgetResizable(True)
+        layout = QFormLayout(widget)
+
+        self.needRestartTitle = QLabel()
+        self.needRestartTitle.setVisible(False)
+        layout.addRow(self.needRestartTitle)
+
+        self.langSelect = QComboBox()
+        self.langSelect.addItems([_[1][0] for _ in Langs.items()])
+        self.langSelect.currentIndexChanged.connect(self.selectLangEvent)
+        layout.addRow("Select language:", self.langSelect)
+
         return page
 
     def create_code_editor_page(self):
@@ -128,6 +159,70 @@ class SettingsWindow(QDialog):
         layout = QVBoxLayout(page)
         layout.addWidget(QLabel("Code Editor Settings"))
         return page
+
+    def create_gradle_page(self):
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setAlignment(Qt.AlignmentFlag.AlignTop)
+        layout.setContentsMargins(20, 20, 20, 20)
+
+        title = QLabel("Java Configuration")
+        title.setStyleSheet("font-size: 16px; font-weight: bold; margin-bottom: 15px;")
+        layout.addWidget(title)
+
+        self.java_path_label = QLabel("Path: Not selected")
+        self.java_path_label.setWordWrap(True)
+        self.java_type_label = QLabel("Type: Unknown")
+        self.java_version_label = QLabel("Version: Unknown")
+
+        self.btn_choose_java = QPushButton("Select JDK Directory")
+        self.btn_choose_java.clicked.connect(self._select_jdk)
+
+        info_layout = QVBoxLayout()
+        info_layout.addWidget(self.java_path_label)
+        info_layout.addWidget(self.java_type_label)
+        info_layout.addWidget(self.java_version_label)
+
+        layout.addLayout(info_layout)
+        layout.addWidget(self.btn_choose_java)
+
+        self._load_java_settings()
+
+        return page
+
+    def _select_jdk(self):
+        path = QFileDialog.getExistingDirectory(
+            self,
+            "Select Java Installation Directory",
+            os.path.expanduser("~"),
+            QFileDialog.Option.ShowDirsOnly
+        )
+
+        if path:
+            valid, java_type, version = GradleWrapper.analyze_java_directory(path)
+
+            if valid:
+                self._update_java_ui(path, java_type, version)
+                settings.save_data("java_home", path)
+                os.environ['JAVA_HOME'] = path
+            else:
+                QMessageBox.warning(
+                    self,
+                    "Invalid Java",
+                    "Selected directory does not contain valid JDK installation!"
+                )
+
+    def _update_java_ui(self, path, java_type, version):
+        self.java_path_label.setText(f"Path: {path}")
+        self.java_type_label.setText(f"Type: {java_type}")
+        self.java_version_label.setText(f"Version: {version if version else 'Unknown'}")
+
+    def _load_java_settings(self):
+        saved_path = settings.get_data("java_home", "")
+        if saved_path and os.path.exists(saved_path):
+            valid, java_type, version = GradleWrapper.analyze_java_directory(saved_path)
+            if valid:
+                self._update_java_ui(saved_path, java_type, version)
 
     def create_appearance_page(self):
         page = QWidget()
