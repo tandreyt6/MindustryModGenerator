@@ -35,6 +35,8 @@ class RU:
             gradleMenu_loaded = "Gradle загружен."
 
         class ActionPanel:
+            run_task = "Запустить задачу"
+            git_menu = "Git"
             project_settings = "Настройки проекта"
             settings = "Настройки"
             show_project_folder = "Показать папку проекта"
@@ -61,6 +63,7 @@ class RU:
             menu_pos6_panels = "право Право"
 
         class Dialog:
+            run_task = "Выполнить"
             confirm_action = "Подтверждение действия"
             name_empty_warn = "Название не должно быть пустым!"
             name_is_long_warn = "Название слишком коротко!"

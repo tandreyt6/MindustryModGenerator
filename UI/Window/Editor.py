@@ -454,6 +454,7 @@ class EditorWindow(QMainWindow):
 
         buildMenu = menubar.addMenu(Language.Lang.Editor.ActionPanel.gradle)
         testMenu = menubar.addMenu(Language.Lang.Editor.ActionPanel.test)
+        testMenu.addAction("Coming soon...")
 
         self.lastActionLabel = QLabel()
 
@@ -489,6 +490,12 @@ class EditorWindow(QMainWindow):
             self.BuildAct.triggered.connect(self.buildTask)
             buildMenu.addAction(self.BuildAct)
 
+            self.RunTaskAct = QAction(Language.Lang.Editor.ActionPanel.run_task)
+            self.RunTaskAct.triggered.connect(self.runTask)
+            buildMenu.addAction(self.RunTaskAct)
+
+        gitMenu = menubar.addMenu(Language.Lang.Editor.ActionPanel.git_menu)
+        gitMenu.addAction("Coming soon...")
 
         self.central_widget = QWidget()
         self.v = QVBoxLayout(self.central_widget)
@@ -543,30 +550,109 @@ class EditorWindow(QMainWindow):
         self.loadDirsForContent(CONTENT_FOLDER.replace("~", self.path).format(package=self.package))
         self.loadElementsFromFile()
 
+    def runTask(self):
+        def execute_custom_task():
+            dialog.close()
+            task_name = dialog.task_input.text().strip()
+            if not task_name:
+                return
+
+            def task_executor(splash_dialog):
+                splash_dialog.text.setText(Language.Lang.Editor.Dialog.start_task.format(name=task_name))
+                return self.gradlewManager.run_task(task_name)
+
+            self._execute_task(
+                task_name=task_name,
+                task_executor=task_executor,
+                success_message=Language.Lang.Editor.Dialog.successful,
+                error_message=Language.Lang.Editor.Dialog.error
+            )
+
+        dialog = self._create_input_dialog(
+            title="Gradle Task",
+            label="gradle:",
+            placeholder="task name",
+            execute_callback=execute_custom_task
+        )
+        dialog.exec()
+
     def buildTask(self):
-        def start():
-            dil.text.setText(Language.Lang.Editor.Dialog.start_task.format(name="Clean"))
-            suc, msg = self.gradlewManager.clean()
-            if suc:
-                dil.text.setText(Language.Lang.Editor.Dialog.start_task.format(name="Build"))
-                suc, msg = self.gradlewManager.build(["--warning-mode=all", "--debug"])
-            memory.put("lastBuildMsg", (suc, msg))
-        self.setActionLabel(Language.Lang.Editor.Dialog.start_task.format(name="Build"))
-        dil = SplashDil()
-        dil.setFixedSize(300, 120)
-        dil.show()
-        thr = Thread(target=start, daemon=True)
-        thr.start()
-        while thr.is_alive():
+        def build_executor(splash_dialog):
+            splash_dialog.text.setText(Language.Lang.Editor.Dialog.start_task.format(name="Clean"))
+            success, message = self.gradlewManager.clean()
+            if not success:
+                return False, message
+
+            splash_dialog.text.setText(Language.Lang.Editor.Dialog.start_task.format(name="Build"))
+            return self.gradlewManager.build(["--warning-mode=all", "--debug"])
+
+        self._execute_task(
+            task_name="Build",
+            task_executor=build_executor,
+            success_message=Language.Lang.Editor.Dialog.build_successful,
+            error_message=Language.Lang.Editor.Dialog.error
+        )
+
+    def _execute_task(self, task_name, task_executor, success_message, error_message):
+        self.setActionLabel(Language.Lang.Editor.Dialog.start_task.format(name=task_name))
+
+        splash_dialog = SplashDil()
+        splash_dialog.setFixedSize(300, 120)
+        splash_dialog.show()
+
+        result = [None, None]
+
+        def worker():
+            try:
+                result[0], result[1] = task_executor(splash_dialog)
+            except Exception as e:
+                result[0], result[1] = False, str(e)
+
+        thread = Thread(target=worker, daemon=True)
+        thread.start()
+
+        while thread.is_alive():
             QApplication.processEvents()
-        dil.hide()
-        if memory.get("lastBuildMsg")[0]:
-            QMessageBox.information(self, Language.Lang.Editor.Dialog.successful,
-                                    Language.Lang.Editor.Dialog.build_successful)
+
+        splash_dialog.hide()
+
+        if result[0]:
+            QMessageBox.information(
+                self,
+                Language.Lang.Editor.Dialog.successful,
+                success_message
+            )
         else:
-            QMessageBox.information(self, Language.Lang.Editor.Dialog.error, memory.get("lastBuildMsg")[1])
+            QMessageBox.critical(
+                self,
+                Language.Lang.Editor.Dialog.error,
+                result[1] or error_message
+            )
 
+    def _create_input_dialog(self, title, label, placeholder, execute_callback):
+        dialog = QDialog(self)
+        dialog.setWindowTitle(title)
+        dialog.setFixedHeight(75)
 
+        layout = QFormLayout(dialog)
+        dialog.task_input = QLineEdit()
+        dialog.task_input.setPlaceholderText(placeholder)
+        layout.addRow(label, dialog.task_input)
+
+        button_layout = QHBoxLayout()
+
+        cancel_button = QPushButton(Language.Lang.Editor.Dialog.cancel)
+        cancel_button.clicked.connect(dialog.close)
+
+        execute_button = QPushButton(Language.Lang.Editor.Dialog.run_task)
+        execute_button.setDefault(True)
+        execute_button.clicked.connect(execute_callback)
+
+        button_layout.addWidget(cancel_button)
+        button_layout.addWidget(execute_button)
+        layout.addRow(button_layout)
+
+        return dialog
 
     def openProjectSettings(self):
         plugin = self.launcherData.get("plugin", None)
