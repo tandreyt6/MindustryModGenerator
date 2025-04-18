@@ -34,7 +34,7 @@ if __name__ == "__main__":
     from UI.Elements.SettingsWindow import SettingsWindow
     from UI.Elements.SoundSelectBox import SoundSelectWidget
     from UI.ContentFormat import uiMethods
-    from UI.Style import dark_style, light_style
+    from UI.Style import dark_style
     from UI.Window.Editor import EditorWindow
     from UI.Window.Launcher import LauncherWindow
     from func import settings, MmgApi

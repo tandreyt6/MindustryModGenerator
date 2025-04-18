@@ -18,9 +18,12 @@ from UI import Language
 from UI.Content.CentralPreviewWidget import PreviewWidget
 from UI.ContentFormat import ALL_TABS, PanelsPos
 from UI.Elements.CardConstructor import TabbedCustomEditor
+from UI.Elements.ConsoleWidget import ConsoleWidget
 from UI.Elements.CreateElementDialog import CreateElementDialog
 from UI.Elements.DragTab import DraggableTabWidget
 from UI.Elements.SplashDil import SplashDil
+from UI.Style import window_dark_style
+from UI.Window.WindowAbs import WindowAbs
 from func import settings, memory
 from func.GLOBAL import CONTENT_FOLDER, LIST_TYPES
 from func.Types.Content import Content
@@ -340,7 +343,7 @@ class ElementsDict:
         return [(key, self.data[identifier]) for key, identifier in self.key_map.items()]
 
 
-class EditorWindow(QMainWindow):
+class EditorWindow(WindowAbs):
     splitterPosChanged = pyqtSignal(list)
     saveRequested = pyqtSignal(dict)
     closeSignal = pyqtSignal(object, bool)
@@ -348,6 +351,7 @@ class EditorWindow(QMainWindow):
 
     def __init__(self, main, data):
         super().__init__()
+        self.setStyleSheet(window_dark_style)
         self.elementsData = ElementsDict()
         self.path = data.get("path")
         self.main = main
@@ -378,8 +382,6 @@ class EditorWindow(QMainWindow):
             return False
         items = [_ for _ in self.tree.find_child_by_text(item.parent(), new_name) if _.data.get("type") != "category"]
         folders = [_ for _ in self.tree.find_child_by_text(item.parent(), new_name) if _.data.get("type") == "category"]
-        print(items)
-        print(folders)
         path = item.get_path()
         path[-1] = new_name
         if ((len(items) > 1 or len(items) > 0 and items[0] != item) and item.data.get("type") != "category") \
@@ -405,9 +407,7 @@ class EditorWindow(QMainWindow):
             QApplication.setWindowIcon(QIcon(os.path.join(self.path, "icon.png")))
         self.setGeometry(100, 100, 1200, 800)
 
-        menubar = self.menuBar()
-
-        FileMenu: QMenu = menubar.addMenu(Language.Lang.Editor.ActionPanel.file)
+        FileMenu = QMenu(Language.Lang.Editor.ActionPanel.file)
 
         self.projectSettingsAct = QAction(Language.Lang.Editor.ActionPanel.project_settings)
         self.projectSettingsAct.triggered.connect(self.openProjectSettings)
@@ -428,7 +428,7 @@ class EditorWindow(QMainWindow):
         FileMenu.addAction(self.exitOnLauncherAct)
         FileMenu.addAction(self.exitOnProgram)
 
-        ViewMenu: QMenu = menubar.addMenu(Language.Lang.Editor.ActionPanel.view)
+        ViewMenu = QMenu(Language.Lang.Editor.ActionPanel.view)
 
         self.setPosPanelsSelect = QMenu(Language.Lang.Editor.ActionPanel.menu_pos_panels)
         self.setPosPanelsAct1 = QAction(Language.Lang.Editor.ActionPanel.menu_pos1_panels)
@@ -452,16 +452,14 @@ class EditorWindow(QMainWindow):
         self.setPosPanelsSelect.addAction(self.setPosPanelsAct5)
         self.setPosPanelsSelect.addAction(self.setPosPanelsAct6)
 
-        buildMenu = menubar.addMenu(Language.Lang.Editor.ActionPanel.gradle)
-        testMenu = menubar.addMenu(Language.Lang.Editor.ActionPanel.test)
+        buildMenu = QMenu(Language.Lang.Editor.ActionPanel.gradle)
+        testMenu = QMenu(Language.Lang.Editor.ActionPanel.test)
         testMenu.addAction("Coming soon...")
 
         self.lastActionLabel = QLabel()
 
         if self.gradlewManager is None:
             buildMenu.setEnabled(False)
-            testMenu.setEnabled(False)
-            buildMenu.setToolTip(Language.Lang.Editor.ToolTip.gradleMenu_noloaded)
             self.setActionLabel(Language.Lang.Editor.ToolTip.gradleMenu_noloaded)
         else:
             d = []
@@ -470,8 +468,8 @@ class EditorWindow(QMainWindow):
                 d.append(suc)
                 d.append(ver)
             splashDil = SplashDil()
-            splashDil.setFixedWidth(190)
-            splashDil.text.setText("load Gradle...")
+            splashDil.setFixedWidth(350)
+            splashDil.text.setText(Language.Lang.Editor.ActionPanel.load_gradle)
             splashDil.cancel.clicked.connect(splashDil.close)
             splashDil.show()
             x = threading.Thread(target=load, args=(d,), daemon=True)
@@ -486,6 +484,7 @@ class EditorWindow(QMainWindow):
             else:
                 buildMenu.setToolTip(Language.Lang.Editor.ToolTip.gradleMenu_loaded)
                 self.setActionLabel(Language.Lang.Editor.ToolTip.gradleMenu_loaded)
+
             self.BuildAct = QAction(Language.Lang.Editor.ActionPanel.build_project)
             self.BuildAct.triggered.connect(self.buildTask)
             buildMenu.addAction(self.BuildAct)
@@ -494,8 +493,14 @@ class EditorWindow(QMainWindow):
             self.RunTaskAct.triggered.connect(self.runTask)
             buildMenu.addAction(self.RunTaskAct)
 
-        gitMenu = menubar.addMenu(Language.Lang.Editor.ActionPanel.git_menu)
+        gitMenu = QMenu(Language.Lang.Editor.ActionPanel.git_menu)
         gitMenu.addAction("Coming soon...")
+
+        self.action_bar.addAction(FileMenu)
+        self.action_bar.addAction(ViewMenu)
+        self.action_bar.addAction(buildMenu)
+        self.action_bar.addAction(testMenu)
+        self.action_bar.addAction(gitMenu)
 
         self.central_widget = QWidget()
         self.v = QVBoxLayout(self.central_widget)
@@ -504,7 +509,6 @@ class EditorWindow(QMainWindow):
         self.setCentralWidget(self.central_widget)
 
         self.splitter = QSplitter()
-        self.v.addWidget(self.splitter)
 
         self.actionPanel = QWidget()
         self.actionPanel.setObjectName("ActionPanel")
@@ -545,10 +549,23 @@ class EditorWindow(QMainWindow):
         self.tree.itemMoved.connect(self.movedItem)
         self.splitter.splitterMoved.connect(self._emit_splitter_changes)
 
+        self.main_splitter = QSplitter(Qt.Orientation.Vertical)
+        self.console = ConsoleWidget()
+        self.console.start_process(self.path)
+
+        self.main_splitter.addWidget(self.splitter)
+        self.main_splitter.addWidget(self.console)
+        self.main_splitter.setSizes([600, 200])
+
+        self.v.insertWidget(0, self.main_splitter)
+
         self.init_test_data()
 
         self.loadDirsForContent(CONTENT_FOLDER.replace("~", self.path).format(package=self.package))
         self.loadElementsFromFile()
+
+        QApplication.processEvents()
+        self.show()
 
     def runTask(self):
         def execute_custom_task():
@@ -1116,12 +1133,15 @@ public class initScript {{
     def apply_settings(self, settings):
         if 'splitter_sizes' in settings:
             self.splitter.setSizes(settings['splitter_sizes'])
+        if 'main_splitter' in settings:
+            self.main_splitter.setSizes(settings['main_splitter'])
         if 'window_geometry' in settings:
             self.restoreGeometry(QByteArray.fromHex(bytes(settings['window_geometry'], 'utf-8')))
 
     def closeEvent(self, event):
         save_data = {
             'splitter_sizes': self.splitter.sizes(),
+            'main_splitter': self.main_splitter.sizes(),
             'window_geometry': bytes(self.saveGeometry()).hex()
         }
         self.saveRequested.emit(save_data)

@@ -34,6 +34,14 @@ class RU:
             gradleMenu_noloaded = "Gradle не был загружен..."
             gradleMenu_loaded = "Gradle загружен."
 
+        class Console:
+            input_placeholder = "Введите команду..."
+            clear = "Очистить"
+            show = "Показать"
+            start = "Запустить"
+            stop = "Останавить"
+            placeholder = "Консоль выполнения..."
+
         class ActionPanel:
             run_task = "Запустить задачу"
             git_menu = "Git"
@@ -51,6 +59,7 @@ class RU:
             view = "Отображение"
             test = "Тест"
             gradle = "Gradle"
+            load_gradle = "Загрузка Gradle..."
             build_project = "Собрать проект"
             item_has_been_created_path = "Элемент {name} был создан в {path}"
             item_has_been_saved = "Элемент {name} был сохранен"
