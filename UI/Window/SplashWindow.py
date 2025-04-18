@@ -9,14 +9,41 @@ import math
 from UI.Style import dark_style
 
 
+class SpinnerWidget(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedSize(50, 50)
+        self.angle = 0
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.update_spinner)
+        self.timer.start(16)
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        center = QPointF(self.rect().center())
+        r = 15
+        count = 12
+        for i in range(count):
+            angle = (360 / count) * i + self.angle
+            rad = math.radians(angle)
+            x = center.x() + math.cos(rad) * 20
+            y = center.y() + math.sin(rad) * 20
+            alpha = int(255 * (i + 1) / count)
+            painter.setBrush(QColor(255, 215, 0, alpha))
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.drawEllipse(QPointF(x, y), r / 5, r / 5)
+
+    def update_spinner(self):
+        self.angle = (self.angle + 5) % 360
+        self.update()
+
 class SplashScreen(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.SplashScreen)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-
         self.setFixedSize(500, 300)
-        self.angle = 0
 
         layout = QVBoxLayout(self)
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -30,12 +57,12 @@ class SplashScreen(QWidget):
         self.text.setFont(QFont("Arial", 12))
         self.text.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
-        layout.addWidget(self.title)
-        layout.addWidget(self.text)
+        self.spinner = SpinnerWidget(self)
 
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self.update_spinner)
-        self.timer.start(16)
+        layout.addWidget(self.title, 1)
+        layout.addWidget(self.text)
+        layout.addWidget(self.spinner, 1, Qt.AlignmentFlag.AlignCenter)
+        layout.addStretch()
 
     def paintEvent(self, event):
         radius = 20
@@ -50,7 +77,7 @@ class SplashScreen(QWidget):
         self.setMask(QRegion(rect, QRegion.RegionType.Rectangle).subtracted(region.subtracted(rounded)))
 
         pixmap = QPixmap("SplashBG.png").scaled(self.size(), Qt.AspectRatioMode.IgnoreAspectRatio,
-                                                  Qt.TransformationMode.SmoothTransformation)
+                                                Qt.TransformationMode.SmoothTransformation)
 
         clip_path = QPainterPath()
         clip_path.addRoundedRect(path, radius, radius)
@@ -60,21 +87,5 @@ class SplashScreen(QWidget):
         painter.setBrush(QColor(0, 0, 0, 100))
         painter.setPen(Qt.PenStyle.NoPen)
         painter.drawRoundedRect(path, radius, radius)
-
-        center = QPointF(rect.center().x(), rect.height() - 50)
-        r = 15
-        count = 12
-        for i in range(count):
-            angle = (360 / count) * i + self.angle
-            rad = math.radians(angle)
-            x = center.x() + math.cos(rad) * 20
-            y = center.y() + math.sin(rad) * 20
-            alpha = int(255 * (i + 1) / count)
-            painter.setBrush(QColor(255, 215, 0, alpha))
-            painter.drawEllipse(QPointF(x, y), r / 5, r / 5)
-
-    def update_spinner(self):
-        self.angle = (self.angle + 5) % 360
-        self.update()
 
 
