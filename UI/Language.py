@@ -1,9 +1,11 @@
 class EN:
+    type = "en"
     class Settings:
         class General:
             needRestart = "For the changes to take effect, you need to restart the application."
 
 class RU:
+    type = "ru"
     class Settings:
         class General:
             needRestart = "Для того, чтобы изменения вступили в силу, необходимо перезапустить приложение."

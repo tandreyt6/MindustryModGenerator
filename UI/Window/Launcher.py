@@ -8,6 +8,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtGui import QAction, QIcon, QPalette, QColor, QCursor, QPixmap
 
 from UI import Language
+from UI.Window.WindowAbs import WindowAbs
 
 
 class ProjectActionMenu(QMenu):
@@ -76,7 +77,7 @@ class ProjectItemWidget(QWidget):
         self.action_requested.emit(self.data, action_id)
 
 
-class LauncherWindow(QMainWindow):
+class LauncherWindow(WindowAbs):
     settings_clicked = pyqtSignal()
     import_project_clicked = pyqtSignal()
     create_project_clicked = pyqtSignal()

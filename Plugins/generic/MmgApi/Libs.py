@@ -6,6 +6,15 @@ from PyQt6.QtCore import QTimer
 
 import UI
 
+class Language:
+    class EN:
+        type = "en"
+
+    class RU:
+        type = "ru"
+
+    Langs = {"ru": ("Русский", RU), "en": ("English", EN)}
+    Lang: EN = None
 
 class Main:
     """Main application controller class handling core functionality including:
@@ -81,15 +90,6 @@ class Main:
                 - name: Project display name
                 - path: Filesystem path
                 - icon: Optional project icon path"""
-
-    def openProject(self, path: str) -> None:
-        """Open and initialize project editor window
-        Args:
-            path: Filesystem path to project directory
-        Effects:
-            - Creates EditorWindow instance
-            - Hides launcher window
-            - Persists opened project in settings"""
 
     def openSettings(self) -> None:
         """Show application settings dialog:

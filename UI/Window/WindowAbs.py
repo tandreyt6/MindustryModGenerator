@@ -90,6 +90,7 @@ class CustomActionBar(QWidget):
         self.toggle_button.setFixedSize(28, 28)
         self.toggle_button.setObjectName("ActionPanelButton")
         self.toggle_button.clicked.connect(self.toggle_actions)
+        self.toggle_button.setVisible(False)
         self.actions_container = QWidget()
         self.actions_layout = QHBoxLayout(self.actions_container)
         self.actions_layout.setContentsMargins(0, 0, 0, 0)
@@ -103,12 +104,14 @@ class CustomActionBar(QWidget):
 
     def addAction(self, action, icon=None):
         if isinstance(action, QAction):
+            self.toggle_button.setVisible(True)
             button = QToolButton()
             button.setDefaultAction(action)
             button.setFixedSize(100, 28)
             button.setObjectName("ActionPanelButton")
             self.actions_layout.addWidget(button)
         elif isinstance(action, QMenu):
+            self.toggle_button.setVisible(True)
             button = QPushButton(action.title())
             if icon:
                 button.setIcon(icon)
@@ -154,6 +157,7 @@ class CustomActionBar(QWidget):
 class WindowAbs(QMainWindow):
     def __init__(self):
         super().__init__()
+        self.setMinimumWidth(750)
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.title_bar = CustomTitleBar(self)
@@ -188,6 +192,12 @@ class WindowAbs(QMainWindow):
             self.setCursor(Qt.CursorShape.SizeVerCursor)
         else:
             self.setCursor(Qt.CursorShape.ArrowCursor)
+
+        if self.action_bar.is_expanded:
+            self.title_bar.title.setVisible(not self.geometry().width() < 850)
+        elif not self.action_bar.is_expanded:
+            self.title_bar.title.setVisible(True)
+
 
     def getDirectionMousePos(self):
         pos = self.mapFromGlobal(QCursor.pos())

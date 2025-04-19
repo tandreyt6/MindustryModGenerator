@@ -1,6 +1,7 @@
-# Generated from: UI\Language.py
-from typing import Any, Optional, Union, Type, ClassVar
-from collections.abc import Callable, Coroutine
+class EN:
+    type = "en"
+class RU:
+    type = "ru"
 
-class EN: ...
-class RU: ...
+Langs = {"ru": ("Русский", RU), "en": ("English", EN)}
+Lang: EN = None
