@@ -30,7 +30,7 @@ class SpinnerWidget(QWidget):
             x = center.x() + math.cos(rad) * 20
             y = center.y() + math.sin(rad) * 20
             alpha = int(255 * (i + 1) / count)
-            painter.setBrush(QColor(255, 215, 0, alpha))
+            painter.setBrush(QColor(255, 255, 255, alpha))
             painter.setPen(Qt.PenStyle.NoPen)
             painter.drawEllipse(QPointF(x, y), r / 5, r / 5)
 

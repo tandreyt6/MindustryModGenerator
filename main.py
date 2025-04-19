@@ -1,6 +1,6 @@
-from UI.Elements.SplashDil import SplashDil
 
 if __name__ == "__main__":
+    from UI.Elements.SplashDil import SplashDil
     from UI import Language
     import ctypes
     import sys
@@ -254,7 +254,7 @@ class Main:
                     sys.path.insert(0, plugin_dir)
                     allowedList = ["_io", "MmgApi", "os", "UI", "main", "sys", "time", "traceback", "zipfile",
                                      "collections", "hjson", "json", "PyQt6", "func.memory", "func.Types.Content",
-                                     "func.settings", "UI.Language", "Language"]
+                                     "func.settings", "UI.Language", "Language", "threading"]
                     allowedList.append(plugin_name)
                     loader = DynamicImporter(plugin_name, main_path, plugin_env,
                     allowed_modules=allowedList)
@@ -263,7 +263,6 @@ class Main:
                     self.loadedPlugins[plugin_name] = module.Plugin(self)
                     self.pluginData[plugin_name + "  (loaded)"] = {"icon": "./Plugins/" + plugin_name + "/icon.png",
                                               "description": data.get("description") + "\n\nV" + data.get("version", "Not select")}
-                    print(f"Successfully loaded plugin: {plugin_name}")
                     self.splashWindow.text.setText("load plugin \"" + plugin_name + "\" is done.")
                 except Exception as e:
                     traceback.print_exc()
@@ -278,20 +277,43 @@ class Main:
             print(f"Skipping plugin {plugin_name} due to dependency errors")
 
     def initContent(self):
+        removed = []
         for plug in self.loadedPlugins:
-            c = self.loadedPlugins[plug].getContent()
-            for content in c:
-                LIST_TYPES[plug + "_" + content] = c[content]
+            try:
+                c = self.loadedPlugins[plug].getContent()
+                for content in c:
+                    LIST_TYPES[plug + "_" + content] = c[content]
+            except Exception as e:
+                removed.append(plug)
+                traceback.print_exc()
+        for plug in removed:
+            del self.loadedPlugins[plug]
 
     def initTemplates(self):
+        removed = []
         for plug in self.loadedPlugins:
-            t = self.loadedPlugins[plug].getStructuresMod()
-            for template in t:
-                LIST_MOD_TEMPLATES[template + "  (" + plug + ")"] = t[template]
+            try:
+                t = self.loadedPlugins[plug].getStructuresMod()
+                for template in t:
+                    LIST_MOD_TEMPLATES[template + "  (" + plug + ")"] = t[template]
+            except Exception as e:
+                removed.append(plug)
+                traceback.print_exc()
+        for plug in removed:
+            del self.loadedPlugins[plug]
+
 
     def initEvent(self):
+        removed = []
         for plug in self.loadedPlugins:
-            self.loadedPlugins[plug].initComplite()
+            try:
+                r = self.loadedPlugins[plug].initComplite()
+            except Exception as e:
+                r = False
+                traceback.print_exc()
+            if not r: removed.append(plug)
+        for plug in removed:
+            del self.loadedPlugins[plug]
 
     def load_recent(self):
         for i in self.projects:
