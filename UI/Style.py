@@ -14,6 +14,9 @@ QLineEdit, QTextEdit, QSpinBox, QDoubleSpinBox {
     padding: 3px 5px;
     selection-background-color: #555555;
 }
+QLabel {
+    background: none;
+}
 QPushButton, QToolButton {
     background-color: #333333;
     color: #FFFFFF;

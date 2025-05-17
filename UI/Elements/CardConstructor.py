@@ -211,10 +211,6 @@ class TabbedCustomEditor(QWidget):
         layout.setContentsMargins(2, 2, 2, 2)
 
         scrollF.setWidget(contentF)
-        tab_layoutF = QVBoxLayout(tabFunc)
-        tab_layoutF.addWidget(scrollF)
-        tab_layoutF.setContentsMargins(0, 0, 0, 0)
-        self.tabs.addTab(tabFunc, "Methods")
 
         self.customTabs = self.classe.get_custom_tabs()
         for tab in self.customTabs:

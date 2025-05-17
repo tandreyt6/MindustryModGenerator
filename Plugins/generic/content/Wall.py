@@ -1,19 +1,17 @@
 import json
 
-from .Block import Block
-from MmgApi.Libs import PyQt6, Content, os, Main, uiMethods, UI
-from PyQt6 import QtWidgets, QtGui, QtCore
+from MmgApi.Libs import Content, os, uiMethods, UI
+import MmgApi
+from PyQt6 import QtWidgets, QtGui
 
 ContentAbstract = Content
-
 CacheLayer = UI.Content.CacheLayer
 SoundSelect = UI.Content.SoundSelect
 saveMode = UI.ContentFormat.saveMode
 
-
-class Wall(Block, ContentAbstract):
+class Wall(ContentAbstract):
     def __init__(self, id, name="Wall"):
-        Block.__init__(self, name)
+        self.name = name
         ContentAbstract.__init__(self)
         self._item = None
         self._right_panel = None
@@ -34,19 +32,17 @@ class Wall(Block, ContentAbstract):
         # self.deflectSound = "Sounds.none"
         self.crushDamageMultiplier = (float, 5, "deflect")
 
-        self.package = "example"
+        self.package = None
 
     def get_all_methods(self):
-        return {
-            "info": [("java", saveMode.Force, [
-                {"type": "string", "value": [{"type": "var", "value": "var1"}], "code": "   return var1;"}
-            ]), {"string": "var1"}]
-        }
+        return {  }
 
     def select_sprite(self):
         filters = '''
-            PNG Images (*.png);
-            JPEG Images (*.jpg *.jpeg);
+            ALL Images (*.png *.jpg *.jpeg *.ico);;
+            PNG Images (*.png);;
+            JPEG Images (*.jpg *.jpeg);;
+            ICO Images (*.ico)
         '''
         file_path, _ = QtWidgets.QFileDialog.getOpenFileName(filter=filters)
         print(file_path, "select sprite")
@@ -55,7 +51,8 @@ class Wall(Block, ContentAbstract):
             self.lblSprite.setText(file_path)
             self._convas.view_scale = 0.3
             self._convas.update()
-
+            os.makedirs(MmgApi.Libs.Main.editor.path + "/assets/sprites/block/", exist_ok=True)
+            self._pixmap.save(MmgApi.Libs.Main.editor.path + "/assets/sprites/block/" + self.name + ".png")
 
     def saveEvent(self):
         pass
@@ -71,9 +68,9 @@ class Wall(Block, ContentAbstract):
                 self._convas, self._right_panel, self._item = i
                 s = self._convas.scene_rect.width() // 32
                 self._convas.add_sprite(self._pixmap, s // 2 * 32, s // 2 * 32, False)
-                if Main and Main.editor:
-                    if os.path.exists(Main.editor.path + "/assets/sprites/block/" + self.name + ".png"):
-                        self._pixmap.load(Main.editor.path + "/assets/sprites/block/" + self.name + ".png")
+                if MmgApi.Libs.Main and MmgApi.Libs.Main.editor:
+                    if os.path.exists(MmgApi.Libs.Main.editor.path + "/assets/sprites/block/" + self.name + ".png"):
+                        self._pixmap.load(MmgApi.Libs.Main.editor.path + "/assets/sprites/block/" + self.name + ".png")
 
         spriteTab = QtWidgets.QWidget()
         lSprite = QtWidgets.QVBoxLayout(spriteTab)
@@ -137,9 +134,9 @@ class Wall(Block, ContentAbstract):
                f"import mindustry.type.Category;\n" \
                f"import mindustry.type.ItemStack;\n" \
                f"import mindustry.world.blocks.defense.Wall;\n" \
-               f"\npublic class {self.name[1]} extends Wall {{\n" \
-               f"    public {self.name[1]}() {{\n" \
-               f'        super("{self.name[1]}");\n' \
+               f"\npublic class {self.get_java_class_name()} extends Wall {{\n" \
+               f"    public {self.get_java_class_name()}() {{\n" \
+               f'        super("{self.get_java_class_name()}");\n' \
                f"{self._get_params(params)}\n" \
                f"    }}\n" \
                f"}}"
@@ -151,8 +148,24 @@ class Wall(Block, ContentAbstract):
             f"new {self.get_java_class_name()}();"
         ]
 
+    def _convert_to_java(self, value):
+        if isinstance(value, bool):
+            return "true" if value else "false"
+        elif isinstance(value, (int, float)):
+            return str(value)
+        elif isinstance(value, str):
+            return value
+        elif isinstance(value, list):
+            return "requirements("+self.category+", ItemStack.with(["+", ".join(", ".join([_[0], str(_[1])]) for _ in value)+"]));"
+        elif isinstance(value, dict):
+            return json.dumps(value, indent=2)
+        elif value is None:
+            return "null"
+        else:
+            return str(value)
+
     def _get_params(self, params):
         return "\n".join(params)
 
     def get_java_class_name(self):
-        return self.name[1]
+        return self.name
