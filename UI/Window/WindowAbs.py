@@ -139,7 +139,7 @@ class CustomActionBar(QWidget):
         self.animation.setStartValue(current_width)
         self.animation.setEndValue(0)
         self.animation.setDuration(500)
-        self.animation.setEasingCurve(QEasingCurve.Type.InBack)
+        self.animation.setEasingCurve(QEasingCurve.Type.InExpo)
         self.animation.valueChanged.connect(lambda value: self.actions_container.setFixedWidth(value))
         QTimer.singleShot(0, self.animation.start)
         self.is_expanded = False

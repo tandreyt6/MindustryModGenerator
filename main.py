@@ -1,56 +1,45 @@
+from UI.Elements.SplashDil import SplashDil
+from UI import Language
+import ctypes
+import sys
+import os
+import time
+import traceback
+import zipfile
+from collections import deque
 
-if __name__ == "__main__":
-    from UI.Elements.SplashDil import SplashDil
-    from UI import Language
-    import ctypes
-    import sys
-    import os
-    import time
-    import traceback
-    import zipfile
-    from collections import deque
+import hjson
+import json
 
-    import hjson
-    import json
+import func
+import func.memory as memory
 
-    import func.MmgApi.Plugins
-    import func.memory as memory
+import PyQt6
+from PyQt6.QtWidgets import *
+from PyQt6.QtCore import *
+from PyQt6.QtGui import *
 
-    import PyQt6
-    from PyQt6.QtWidgets import *
-    from PyQt6.QtCore import *
-    from PyQt6.QtGui import *
+from threading import Thread
 
-    from threading import Thread
+from UI.Window.SplashWindow import SplashScreen
 
-    from UI.Window.SplashWindow import SplashScreen
-
-    import UI as UI2
-    from func.Types import Content as ContentAbstract
-    from UI.Content import CacheLayer, SoundSelect
-    from UI.Elements.CardConstructor import CustomNoneClass
-    from UI.Elements.CreateDialog import ProjectDialog
-    from UI.Elements.FloatSpinBox import FloatSpinBox
-    from UI.Elements.SettingsWindow import SettingsWindow
-    from UI.Elements.SoundSelectBox import SoundSelectWidget
-    from UI.ContentFormat import uiMethods
-    from UI.Style import dark_style
-    from UI.Window.Editor import EditorWindow
-    from UI.Window.Launcher import LauncherWindow
-    from func import settings, MmgApi
-    from func.GLOBAL import LIST_TYPES, LIST_MOD_TEMPLATES
-    from func.PluginLoader import DynamicImporter, ModulePrint
-
-    import win32gui, win32con
-
-    def is_running_as_exe() -> bool:
-        return hasattr(sys, 'frozen') and getattr(sys, 'frozen', False)
-
-    if is_running_as_exe() and not 'debug' in sys.argv:
-        the_program_to_hide = win32gui.GetForegroundWindow()
-        win32gui.ShowWindow(the_program_to_hide, win32con.SW_HIDE)
-
-    memory.put("appIsRunning", True)
+import UI as UI2
+from func.Types import Content as ContentAbstract
+from UI.Content import CacheLayer, SoundSelect
+from UI.Elements.CardConstructor import CustomNoneClass
+from UI.Elements.CreateDialog import ProjectDialog
+from UI.Elements.FloatSpinBox import FloatSpinBox
+from UI.Elements.SettingsWindow import SettingsWindow
+from UI.Elements.SoundSelectBox import SoundSelectWidget
+from UI.ContentFormat import uiMethods
+from UI.Style import dark_style
+from UI.Window.Editor import EditorWindow
+from UI.Window.Launcher import LauncherWindow
+from func import settings
+from func.GLOBAL import LIST_TYPES, LIST_MOD_TEMPLATES
+from func.PluginLoader import DynamicImporter, ModulePrint
+import func.MmgApi
+memory.put("appIsRunning", True)
 
 
 class Main:
@@ -60,8 +49,9 @@ class Main:
         env = os.environ.copy()
         memory.put("env", env)
 
-        env['JAVA_HOME'] = settings.get_data("java_home")
-        env['java'] = settings.get_data("java_home")+"/bin/java.exe"
+        if settings.get_data("java_home"):
+            env['JAVA_HOME'] = settings.get_data("java_home")
+            env['java'] = settings.get_data("java_home")+"/bin/java.exe"
 
         Language.Lang = Language.Langs.get(settings.get_data("lang"), Language.Langs['ru'])[1]
         print(Language.Lang)
@@ -120,6 +110,8 @@ class Main:
         time.sleep(0.1)
         self.loadPlugins()
         func.MmgApi.Plugins.Plugins = func.MmgApi.Plugins.PluginLoader(self.loadedPlugins)
+        func.MmgApi.Libs.Main = self
+        print(func.MmgApi.Libs.Main)
         self.initContent()
         self.initTemplates()
         self.splashWindow.text.setText("We are completing it...")
@@ -238,8 +230,9 @@ class Main:
                 continue
 
             plugin_env = {
-                "MmgApi": MmgApi
+                "MmgApi": func.MmgApi
             }
+            print(func.MmgApi.Libs.Main, "test ---------------")
 
             for dep in dependencies[plugin_name]:
                 if dep in reserved_names:
@@ -257,7 +250,7 @@ class Main:
                                      "func.settings", "UI.Language", "Language", "threading"]
                     allowedList.append(plugin_name)
                     loader = DynamicImporter(plugin_name, main_path, plugin_env,
-                    allowed_modules=allowedList)
+                    allowed_modules=allowedList, checkAllowed=False)
 
                     module = loader.load_module()
                     self.loadedPlugins[plugin_name] = module.Plugin(self)
@@ -317,6 +310,7 @@ class Main:
 
     def load_recent(self):
         for i in self.projects:
+            if not os.path.exists(i.get("path", "")): continue
             self.launcher_window.add_project(
                 name=i.get("name", "Unknown"),
                 icon=QIcon(i.get("path", "") + "/icon.png") if os.path.exists(
@@ -342,24 +336,33 @@ class Main:
             app.processEvents()
         dil.close()
         del data['dil']
-        if memory.get("canOpenEditor"):
+        if memory.get("canOpenEditor") == True:
             self.openProject(data)
             return
+        else:
+            print(memory.get("canOpenEditor"))
         self.launcher_window.show()
 
     def checkAndOpenProject(self, data):
         time.sleep(1)
         if not os.path.exists(str(data.get("path", ""))):
+            memory.put("canOpenEditor", "Directory does not exist")
             return False
         if not os.path.exists(str(data.get("path", ""))+"/Elements.mmg_j"):
+            memory.put("canOpenEditor", "File Elements.mmg_j does not exist")
             return False
         if not data['dil'].isVisible():
+            memory.put("canOpenEditor", "Canceled")
             return False
         memory.put("canOpenEditor", True)
         return True
 
     def openProject(self, data: dict):
         settings.save_data("openedProject", data.get("path"))
+        recent = settings.get_data('recent')
+        if not data in recent:
+            recent.append(data)
+            settings.save_data("recent", recent)
         memory.put("selectProject", data)
         self.editor = EditorWindow(self, data)
         self.editor.apply_settings(settings.get_data("editorGeometry", {}))
@@ -387,7 +390,8 @@ class Main:
             constructor(self.launcher_window)
 
     def showExplorerFolder(self, data):
-        os.startfile(data["path"])
+        if os.path.exists(data["path"]):
+            os.startfile(data["path"])
 
     def editorGeometrySave(self, data):
         settings.save_data("editorGeometry", data)
@@ -406,6 +410,8 @@ if __name__ == "__main__":
     app = QApplication([])
 
     app.setStyleSheet(dark_style)
+    app.setWindowIcon(QIcon("appIcon.ico"))
+
     win = Main()
 
     while memory.get("appIsRunning", False):

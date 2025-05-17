@@ -23,21 +23,26 @@ class ModulePrint:
 
 
 class DynamicImporter:
-    def __init__(self, module_name, file_path, globals_dict, allowed_modules):
+    def __init__(self, module_name, file_path, globals_dict, allowed_modules, checkAllowed):
         self.module_name = module_name
         self.file_path = file_path
         self.globals_dict = globals_dict
         self.allowed_modules = allowed_modules
+        self.checkAllowed = checkAllowed
+        self.original_import = builtins.__import__
+        self.bPrint = builtins.print
+        builtins.print = self.print
 
     def restricted_import(self, name, globals=None, locals=None, fromlist=(), level=0):
-        if name.startswith('.') or len(name.split(".")) == level:
-            return self.original_import(name, globals, locals, fromlist, level)
-        if name.split('.')[0] not in self.allowed_modules and not name in self.allowed_modules:
-            raise ImportError(f"Import of module '{name}' is not allowed")
+        if self.checkAllowed:
+            if name.startswith('.') or len(name.split(".")) == level:
+                return self.original_import(name, globals, locals, fromlist, level)
+            if name.split('.')[0] not in self.allowed_modules and not name in self.allowed_modules:
+                raise ImportError(f"Import of module '{name}' is not allowed")
         return self.original_import(name, globals, locals, fromlist, level)
 
     def print(self, *argv, **kwargs):
-        print(*argv, **kwargs)
+        self.bPrint(*argv, **kwargs)
 
     def load_module(self):
         if not os.path.exists(self.file_path):
@@ -58,15 +63,13 @@ class DynamicImporter:
         module.__package__ = package_name
         module.__path__ = [module_dir]
 
-        self.original_import = builtins.__import__
         builtins.__import__ = self.restricted_import
 
         try:
-            self.globals_dict['print'] = self.print
+            print(self.globals_dict)
             module.__dict__.update(self.globals_dict)
             sys.modules[self.module_name] = module
             spec.loader.exec_module(module)
-            self.globals_dict.update(module.__dict__)
         finally:
             builtins.__import__ = self.original_import
 

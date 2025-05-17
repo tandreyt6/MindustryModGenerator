@@ -1,4 +1,6 @@
 import sys
+import traceback
+
 from PyQt6.QtCore import Qt, pyqtSignal, QSize, QPoint
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QToolBar, QListWidget, QListWidgetItem,
@@ -7,6 +9,7 @@ from PyQt6.QtWidgets import (
 )
 from PyQt6.QtGui import QAction, QIcon, QPalette, QColor, QCursor, QPixmap
 
+from func import settings
 from UI import Language
 from UI.Window.WindowAbs import WindowAbs
 
@@ -167,10 +170,16 @@ class LauncherWindow(WindowAbs):
         confirm.button(QMessageBox.StandardButton.Ok).setText(Language.Lang.Launcher.Dialog.act_del_from_project_list)
         confirm.button(QMessageBox.StandardButton.No).setText(Language.Lang.Launcher.Dialog.cancel)
 
-        if confirm.exec() == QMessageBox.StandardButton.Yes:
+        if confirm.exec() == QMessageBox.StandardButton.Ok:
             self.remove_project(data)
             self.project_delete_clicked.emit(data)
-
+            recent = settings.get_data('recent', [])
+            try:
+                index = recent.index(data)
+                recent.pop(index)
+                settings.save_data('recent', recent)
+            except Exception as e:
+                traceback.print_exc()
     def remove_project(self, data):
         for i in range(self.project_list.count()):
             item = self.project_list.item(i)

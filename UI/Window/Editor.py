@@ -12,7 +12,6 @@ from PyQt6.QtWidgets import *
 from PyQt6.QtCore import *
 from PyQt6.QtGui import *
 
-import main
 from GradlewManager import GradleWrapper
 from UI import Language
 from UI.Content.CentralPreviewWidget import PreviewWidget
@@ -238,7 +237,7 @@ class TreeWidget(QTreeWidget):
         return len(text.strip()) > 0
 
     def validate_rename(self, old_text, new_text, item):
-        return self.parent().parent().handle_rename_validation(old_text, new_text, item)
+        return self.parent().parent().parent().parent().parent().handle_rename_validation(old_text, new_text, item)
 
     def handle_rename_complete(self, old_text, new_text, item):
         self.itemRenamed.emit(old_text, new_text, item)
@@ -364,7 +363,9 @@ class EditorWindow(WindowAbs):
         if data.get("path"):
             with open(os.path.join(data.get("path"), "mod.hjson"), "r", encoding="utf-8") as e:
                 self.data = hjson.load(e)
-        self.package = self.data.get("main", "example.javaMod").split(".")[0]
+        x = self.data.get("main", "example.javaMod").split(".")
+        x.pop(-1)
+        self.package = ".".join(x)
         self.init_ui()
 
     def handle_rename_validation(self, old_name, new_name, item):
@@ -404,7 +405,8 @@ class EditorWindow(WindowAbs):
 
         self.setWindowTitle(self.data.get("displayName", "") + " - Editor")
         if self.path:
-            QApplication.setWindowIcon(QIcon(os.path.join(self.path, "icon.png")))
+            if os.path.exists(os.path.join(self.path, "icon.png")):
+                QApplication.setWindowIcon(QIcon(os.path.join(self.path, "icon.png")))
         self.setGeometry(100, 100, 1200, 800)
 
         FileMenu = QMenu(Language.Lang.Editor.ActionPanel.file)
@@ -561,7 +563,7 @@ class EditorWindow(WindowAbs):
 
         self.init_test_data()
 
-        self.loadDirsForContent(CONTENT_FOLDER.replace("~", self.path).format(package=self.package))
+        self.loadDirsForContent(CONTENT_FOLDER.replace("~", self.path).format(package="/".join(self.package.split('.'))))
         self.loadElementsFromFile()
 
         QApplication.processEvents()
@@ -765,19 +767,19 @@ class EditorWindow(WindowAbs):
         print(item.data['type'], "renamed")
         if self.elementsData.__contains__(id(item)) and item.data['type'] == "item":
             path1 = (CONTENT_FOLDER.replace("~", self.path) + "/" + "/".join(path)).format(
-                package=self.package) + self.elementsData[id(item)]['data']['end']
+                package="/".join(self.package.split('.'))) + self.elementsData[id(item)]['data']['end']
             path[-1] = new_text
             path2 = (CONTENT_FOLDER.replace("~", self.path) + "/" + "/".join(path)).format(
-                package=self.package) + self.elementsData[id(item)]['data']['end']
+                package="/".join(self.package.split('.'))) + self.elementsData[id(item)]['data']['end']
             print(path1, "->", path2)
             if os.path.exists(path1) and not os.path.exists(path2):
                 os.rename(path1, path2)
         elif item.data['type'] != "item":
             path1 = (CONTENT_FOLDER.replace("~", self.path) + "/" + "/".join(path)).format(
-                package=self.package)
+                package="/".join(self.package.split('.')))
             path[-1] = new_text
             path2 = (CONTENT_FOLDER.replace("~", self.path) + "/" + "/".join(path)).format(
-                package=self.package)
+                package="/".join(self.package.split('.')))
             print(path1, "->", path2)
             if os.path.exists(path1) and not os.path.exists(path2):
                 os.rename(path1, path2)
@@ -788,14 +790,14 @@ class EditorWindow(WindowAbs):
         self.saveElementsData()
 
     def movedItem(self, item: TreeWidgetItem, oldParent: TreeWidgetItem | None):
-        oldPath = CONTENT_FOLDER.format(package=self.package).replace("~/", self.path + "/") + "/" + "/".join(
+        oldPath = CONTENT_FOLDER.format(package="/".join(self.package.split('.'))).replace("~/", self.path + "/") + "/" + "/".join(
             item.get_path()) + self.elementsData[id(item)]["data"]['end']
         item.wParent = item.parent()
         path = item.get_path()
         path.pop(-1)
         self.elementsData[id(item)]["data"]["path"] = "/".join(path)
         self.saveElementsData()
-        full = CONTENT_FOLDER.format(package=self.package).replace("~/", self.path + "/") + "/" + "/".join(
+        full = CONTENT_FOLDER.format(package="/".join(self.package.split('.'))).replace("~/", self.path + "/") + "/" + "/".join(
             item.get_path()) + self.elementsData[id(item)]["data"]['end']
         print(oldPath, "->", full)
         if os.path.exists(oldPath):
@@ -821,7 +823,7 @@ class EditorWindow(WindowAbs):
                     return
 
             file = (CONTENT_FOLDER.replace("~", self.path) + "/" + "/".join(item.get_path())).format(
-                package=self.package)
+                package="/".join(self.package.split('.')))
             if os.path.exists(file + self.elementsData[id(item)]['data']['end']):
                 os.remove(file + self.elementsData[id(item)]['data']['end'])
             if self.elementsData[id(item)]['tab'] is not None:
@@ -840,7 +842,7 @@ class EditorWindow(WindowAbs):
                     it: TreeWidgetItem = item.child(0)
                     self.handle_delete(it, True)
             folder = (CONTENT_FOLDER.replace("~", self.path) + "/" + "/".join(item.get_path())).format(
-                package=self.package)
+                package="/".join(self.package.split('.')))
             if os.path.exists(folder):
                 shutil.rmtree(folder)
                 print(folder, "removed")
@@ -903,7 +905,7 @@ public class initScript {{
 
     def saveInitScript(self):
         text = self.generateImportJavaCode()
-        path = self.path + f"/src/{self.package}/initScript.java"
+        path = self.path + f"/src/{'/'.join(self.package.split('.'))}/initScript.java"
         print(path)
         with open(path, "w", encoding="utf-8") as e:
             e.write(text)
@@ -963,7 +965,7 @@ public class initScript {{
                 break
 
     def createPath(self, item):
-        folder = (CONTENT_FOLDER.replace("~", self.path) + "/" + "/".join(item.get_path())).format(package=self.package)
+        folder = (CONTENT_FOLDER.replace("~", self.path) + "/" + "/".join(item.get_path())).format(package="/".join(self.package.split('.')))
         print(folder)
         os.makedirs(folder, exist_ok=True)
 
@@ -980,7 +982,7 @@ public class initScript {{
     def loadDirsForContent(self, directory, fname=""):
         folders = self.getDirs(directory + "/" + fname)
         for name in folders:
-            name = name.replace(CONTENT_FOLDER.format(package=self.package).replace("~", self.path), "").replace("\\",
+            name = name.replace(CONTENT_FOLDER.format(package="/".join(self.package.split('.'))).replace("~", self.path), "").replace("\\",
                                                                                                                  "/").replace(
                 "//", "/")
             path = [_ for _ in name.split("/") if _ != ""]
@@ -1074,7 +1076,7 @@ public class initScript {{
                 pkg = [self.package + ".content"] + tab["item"].get_path()[:-1]
                 cls.package = ".".join(pkg)
 
-                path = os.path.join(CONTENT_FOLDER.format(package=self.package), *pkg[1:]).replace("~", self.path)
+                path = os.path.join(CONTENT_FOLDER.format(package="/".join(self.package.split('.'))), *pkg[1:]).replace("~", self.path)
                 os.makedirs(path, exist_ok=True)
                 with open(os.path.join(path, item_text + self.elementsData[item_text]['data']['end']), "w",
                           encoding="utf-8") as e:
@@ -1139,6 +1141,7 @@ public class initScript {{
             self.restoreGeometry(QByteArray.fromHex(bytes(settings['window_geometry'], 'utf-8')))
 
     def closeEvent(self, event):
+        self.console.terminate_process()
         save_data = {
             'splitter_sizes': self.splitter.sizes(),
             'main_splitter': self.main_splitter.sizes(),

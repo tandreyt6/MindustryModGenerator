@@ -1,6 +1,6 @@
 import os
 import UI
-from main import win as Main
+Main = None
 import PyQt6
 import func.memory as memory
 import zipfile
