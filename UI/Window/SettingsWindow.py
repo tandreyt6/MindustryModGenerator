@@ -6,11 +6,13 @@ from PyQt6.QtWidgets import (QDialog, QHBoxLayout, QScrollArea, QWidget, QVBoxLa
                              QSizePolicy, QFrame, QFormLayout, QComboBox, QPushButton, QLineEdit, QMessageBox,
                              QFileDialog)
 from PyQt6.QtGui import QPixmap, QCursor
-from PyQt6.QtCore import Qt, QPropertyAnimation, QEasingCurve, pyqtProperty
+from PyQt6.QtCore import Qt, QPropertyAnimation, QEasingCurve, pyqtProperty, pyqtSignal
 
 from GradlewManager import GradleWrapper
 from UI import Language
 from UI.Language import Langs
+from UI.Style import ALL_THEMES
+from UI.Window.WindowAbs import DialogAbs
 from func import settings, memory
 
 
@@ -79,7 +81,9 @@ class PluginWidget(QWidget):
         super().mousePressEvent(event)
 
 
-class SettingsWindow(QDialog):
+class SettingsWindow(DialogAbs):
+    themeChanged = pyqtSignal(str)
+
     def __init__(self, plugins_data=None):
         super().__init__()
         self.setWindowTitle("Settings")
@@ -88,9 +92,10 @@ class SettingsWindow(QDialog):
         self.init_ui()
 
     def init_ui(self):
-        main_layout = QHBoxLayout(self)
+        main_layout = QHBoxLayout()
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
+        self.main_layout.addLayout(main_layout)
 
         self.left_panel = QListWidget()
         self.left_panel.setFixedWidth(180)
@@ -227,8 +232,25 @@ class SettingsWindow(QDialog):
     def create_appearance_page(self):
         page = QWidget()
         layout = QVBoxLayout(page)
-        layout.addWidget(QLabel("Appearance Settings"))
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
+
+        label = QLabel("Select Theme:")
+        layout.addWidget(label)
+
+        self.theme_combo = QComboBox()
+        for name in ALL_THEMES:
+            self.theme_combo.addItem(name)
+        layout.addWidget(self.theme_combo)
+
+        self.theme_combo.currentTextChanged.connect(self.on_theme_selected)
+
+        layout.addStretch()
+
         return page
+
+    def on_theme_selected(self, index: str):
+        self.themeChanged.emit(index)
 
     def change_page(self, index):
         self.right_panel.setCurrentIndex(index)

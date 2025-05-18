@@ -6,8 +6,6 @@ from PyQt6.QtGui import QPainter, QBrush, QColor, QPixmap, QPen, QFont, QRegion,
 import sys
 import math
 
-from UI.Style import dark_style
-
 
 class SpinnerWidget(QWidget):
     def __init__(self, parent=None):

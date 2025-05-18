@@ -21,11 +21,11 @@ from UI.Elements.ConsoleWidget import ConsoleWidget
 from UI.Elements.CreateElementDialog import CreateElementDialog
 from UI.Elements.DragTab import DraggableTabWidget
 from UI.Elements.SplashDil import SplashDil
-from UI.Style import window_dark_style
 from UI.Window.WindowAbs import WindowAbs
-from func import settings, memory
+from func import settings
 from func.GLOBAL import CONTENT_FOLDER, LIST_TYPES
 from func.Types.Content import Content
+from UI.Window.TechTreeWindow import TechTreeWindow
 
 
 class TreeWidgetItem(QTreeWidgetItem):
@@ -350,7 +350,6 @@ class EditorWindow(WindowAbs):
 
     def __init__(self, main, data):
         super().__init__()
-        self.setStyleSheet(window_dark_style)
         self.elementsData = ElementsDict()
         self.path = data.get("path")
         self.main = main
@@ -498,13 +497,22 @@ class EditorWindow(WindowAbs):
         gitMenu = QMenu(Language.Lang.Editor.ActionPanel.git_menu)
         gitMenu.addAction("Coming soon...")
 
+        treeManu = QMenu(Language.Lang.Editor.ActionPanel.treeMenu)
+        self.open_tree_action = QAction(Language.Lang.Editor.ActionPanel.openTreeMenu)
+        self.open_tree_action.triggered.connect(lambda: self.showTechTree())
+        treeManu.addAction(self.open_tree_action)
+
+        self.techTree = TechTreeWindow()
+
         self.action_bar.addAction(FileMenu)
         self.action_bar.addAction(ViewMenu)
         self.action_bar.addAction(buildMenu)
         self.action_bar.addAction(testMenu)
         self.action_bar.addAction(gitMenu)
+        self.action_bar.addAction(treeManu)
 
         self.central_widget = QWidget()
+        self.central_widget.setObjectName("contentArea")
         self.v = QVBoxLayout(self.central_widget)
         self.v.setContentsMargins(0, 0, 0, 0)
         self.v.setSpacing(2)
@@ -568,6 +576,14 @@ class EditorWindow(WindowAbs):
 
         QApplication.processEvents()
         self.show()
+
+    def showTechTree(self):
+        self.techTree.show()
+        self.techTree.raise_()
+
+    def setTheme(self, theme):
+        self.setStyleSheet(theme[1])
+        self.techTree.setStyleSheet(theme[1])
 
     def runTask(self):
         def execute_custom_task():
@@ -675,41 +691,16 @@ class EditorWindow(WindowAbs):
 
     def openProjectSettings(self):
         plugin = self.launcherData.get("plugin", None)
-        if plugin:
+        if plugin and len(plugin) > 0 and plugin[0] in self.main.loadedPlugins:
             self.main.loadedPlugins[plugin[0]].getDialogSettings(self.launcherData)
         else:
-            if len(list(self.main.loadedPlugins.keys())) == 0:
-                QMessageBox.warning(self, Language.Lang.Editor.Dialog.error,
-                                    Language.Lang.Editor.Dialog.save_select)
-                return
-            dil = QDialog(self)
-
-            def save():
-                dil.close()
-                self.main.loadedPlugins[combo.currentText()].getDialogSettings(self.launcherData)
-                if isSave.isChecked():
-                    self.launcherData['plugin'] = [combo.currentText(), None]
-                    settings.save_data('recent', self.main.projects)
-
-            v = QVBoxLayout(dil)
-            isSave = QCheckBox()
-            isSave.setText(Language.Lang.Editor.Dialog.save_select)
-            combo = QComboBox()
-            combo.addItems(list(self.main.loadedPlugins.keys()))
-            saveBtn = QPushButton(Language.Lang.Editor.Dialog.apply)
-            saveBtn.clicked.connect(save)
-            saveBtn.setDefault(True)
-            cancel = QPushButton(Language.Lang.Editor.Dialog.cancel)
-            cancel.clicked.connect(dil.close)
-            v.addWidget(QLabel(Language.Lang.Editor.Dialog.select_plugin))
-            v.addWidget(combo)
-            v.addWidget(isSave)
-            h0 = QHBoxLayout()
-            h0.addWidget(cancel)
-            h0.addWidget(saveBtn)
-            v.addLayout(h0)
-
-            dil.exec()
+            msg = Language.Lang.Editor.Dialog.plugin_created_mod_not_found
+            if len(plugin) == 0:
+                msg = msg.format(name="unknown")
+            else:
+                msg = msg.format(name=plugin[0])
+            QMessageBox.warning(self, Language.Lang.Editor.Dialog.error, msg)
+            return
 
     def setPosForPanels(self, pos: PanelsPos):
         widgets_order = [self.splitter.widget(i) for i in range(self.splitter.count())]
