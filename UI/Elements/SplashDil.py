@@ -8,7 +8,7 @@ import sys
 import math
 
 from UI import Language
-from UI.Style import dark_style
+from UI.Style import ALL_THEMES
 from UI.Window.SplashWindow import SpinnerWidget
 
 

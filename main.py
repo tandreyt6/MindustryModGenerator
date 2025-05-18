@@ -1,20 +1,17 @@
 from UI.Elements.SplashDil import SplashDil
 from UI import Language
-import ctypes
+import UI
 import sys
 import os
 import time
 import traceback
-import zipfile
 from collections import deque
 
-import hjson
 import json
 
 import func
 import func.memory as memory
 
-import PyQt6
 from PyQt6.QtWidgets import *
 from PyQt6.QtCore import *
 from PyQt6.QtGui import *
@@ -23,24 +20,21 @@ from threading import Thread
 
 from UI.Window.SplashWindow import SplashScreen
 
-import UI as UI2
-from func.Types import Content as ContentAbstract
-from UI.Content import CacheLayer, SoundSelect
-from UI.Elements.CardConstructor import CustomNoneClass
 from UI.Elements.CreateDialog import ProjectDialog
-from UI.Elements.FloatSpinBox import FloatSpinBox
-from UI.Elements.SettingsWindow import SettingsWindow
-from UI.Elements.SoundSelectBox import SoundSelectWidget
-from UI.ContentFormat import uiMethods
-from UI.Style import dark_style
+from UI.Window.SettingsWindow import SettingsWindow
+from UI.Style import ALL_THEMES
 from UI.Window.Editor import EditorWindow
 from UI.Window.Launcher import LauncherWindow
+from UI.Content import CacheLayer, SoundSelect
 from func import settings
 from func.GLOBAL import LIST_TYPES, LIST_MOD_TEMPLATES
 from func.PluginLoader import DynamicImporter, ModulePrint
 import func.MmgApi
+func.MmgApi.Libs.UI = UI
+
 memory.put("appIsRunning", True)
 
+SELECTED_THEME = ("", "")
 
 class Main:
     def __init__(self):
@@ -79,7 +73,9 @@ class Main:
         self.editor = None
 
         self.settingsWindow = SettingsWindow(self.pluginData)
+        self.settingsWindow.themeChanged.connect(self.setTheme)
         self.launcher_window = LauncherWindow()
+        self.launcher_window.setStyleSheet(SELECTED_THEME[1])
         self.launcher_window.create_project_clicked.connect(self.create_project)
         self.launcher_window.project_open_clicked.connect(self.select_project)
         self.launcher_window.settings_clicked.connect(self.openSettings)
@@ -96,6 +92,16 @@ class Main:
         self.timer = QTimer(self.launcher_window)
         self.timer.timeout.connect(self.update)
         self.timer.start(100)
+
+    def setTheme(self, theme: str):
+        global SELECTED_THEME
+        SELECTED_THEME = ALL_THEMES.get(theme, ALL_THEMES['dark_classic'])
+        app.setStyleSheet(SELECTED_THEME[0])
+        self.launcher_window.setStyleSheet(SELECTED_THEME[1])
+        self.settingsWindow.setStyleSheet(SELECTED_THEME[1])
+        if self.editor is not None:
+            self.editor.setTheme(SELECTED_THEME)
+        settings.save_data("appStyle", theme)
 
     def checkLastAndOpen(self):
         if settings.get_data("openedProject", None) and os.path.exists(settings.get_data("openedProject")):
@@ -365,6 +371,7 @@ class Main:
             settings.save_data("recent", recent)
         memory.put("selectProject", data)
         self.editor = EditorWindow(self, data)
+        self.editor.setStyleSheet(SELECTED_THEME[1])
         self.editor.apply_settings(settings.get_data("editorGeometry", {}))
         self.editor.saveRequested.connect(self.editorGeometrySave)
         self.editor.closeSignal.connect(self.closeEditor)
@@ -409,10 +416,10 @@ win = None
 if __name__ == "__main__":
     app = QApplication([])
 
-    app.setStyleSheet(dark_style)
     app.setWindowIcon(QIcon("appIcon.ico"))
 
     win = Main()
+    win.setTheme(settings.get_data("appStyle", "Dark Original"))
 
     while memory.get("appIsRunning", False):
         app.processEvents()

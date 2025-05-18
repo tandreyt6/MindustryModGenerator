@@ -5,6 +5,7 @@ import MmgApi
 from PyQt6 import QtWidgets, QtGui
 
 ContentAbstract = Content
+print(vars(UI.Content))
 CacheLayer = UI.Content.CacheLayer
 SoundSelect = UI.Content.SoundSelect
 saveMode = UI.ContentFormat.saveMode

@@ -1,19 +1,16 @@
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout,
     QPushButton, QApplication, QLabel,
-    QSizeGrip, QVBoxLayout, QFrame, QToolButton, QMenu
+    QSizeGrip, QVBoxLayout, QFrame, QToolButton, QMenu, QDialog
 )
-from PyQt6.QtCore import Qt, QPoint, QRect, QEvent, QVariantAnimation, QEasingCurve, QTimer, QSize
-from PyQt6.QtGui import QMouseEvent, QResizeEvent, QAction, QCursor
-
-from UI.Style import window_dark_style
+from PyQt6.QtCore import Qt, QPoint, QRect, QEvent, QVariantAnimation, QEasingCurve, QTimer, QSize, QPointF, QRectF
+from PyQt6.QtGui import QMouseEvent, QResizeEvent, QAction, QCursor, QPainterPath, QPainter, QColor, QBrush, QPen
 
 
 class CustomTitleBar(QFrame):
     def __init__(self, parent):
         super().__init__(parent)
         self.setObjectName('CustomTitleBar')
-        self.setStyleSheet(window_dark_style)
         self.parent = parent
         self.setMinimumHeight(32)
         self.hLayout = QHBoxLayout(self)
@@ -27,8 +24,7 @@ class CustomTitleBar(QFrame):
         for btn in [self.btn_min, self.btn_max, self.btn_close]:
             btn.setFixedSize(30, 30)
             btn.setFocusPolicy(Qt.FocusPolicy.NoFocus)
-            btn.setStyleSheet("background-color: #1E1E1E; color: #FFFFFF; border: none; border-radius: 4px;")
-        self.btn_close.setStyleSheet("background-color: #D32F2F; border-radius: 4px;")
+            btn.setObjectName("WindowTitleButtons")
         self.hLayout.addWidget(self.title)
         self.hLayout.addStretch()
         self.hLayout.addWidget(self.btn_min)
@@ -153,6 +149,51 @@ class CustomActionBar(QWidget):
         else:
             self.collapse()
 
+class OverlayBorderWidget(QWidget):
+    def __init__(self, parent, radius=10.0, border_width=2.0):
+        super().__init__(parent, Qt.WindowType.FramelessWindowHint)
+        self.radius = radius
+        self.border_width = border_width
+
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        self.setAutoFillBackground(False)
+
+        self._update_geometry(600, 600)
+        self.show()
+
+    def _update_geometry(self, w, h):
+        self.setGeometry(0, 0,
+                         w,
+                         h)
+        self.raise_()
+
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        bw = self.border_width
+        rect = QRectF(bw/2, bw/2,
+                      self.width() - bw,
+                      self.height() - bw)
+        r = self.radius
+
+        path = QPainterPath()
+        path.moveTo(rect.left(),   rect.top()   + r)
+        path.quadTo(rect.left(),   rect.top(),    rect.left()   + r, rect.top())
+        path.lineTo(rect.right()  - r, rect.top())
+        path.quadTo(rect.right(),  rect.top(),    rect.right(),    rect.top()   + r)
+        path.lineTo(rect.right(),  rect.bottom() - r)
+        path.quadTo(rect.right(),  rect.bottom(), rect.right()  - r, rect.bottom())
+        path.lineTo(rect.left()   + r, rect.bottom())
+        path.quadTo(rect.left(),   rect.bottom(), rect.left(),     rect.bottom() - r)
+        path.lineTo(rect.left(),   rect.top()   + r)
+
+        pen = QPen(self.parent().palette().color(self.parent().foregroundRole()))
+        pen.setWidthF(bw)
+        painter.setPen(pen)
+        painter.setBrush(Qt.BrushStyle.NoBrush)
+        painter.drawPath(path)
 
 class WindowAbs(QMainWindow):
     def __init__(self):
@@ -166,10 +207,18 @@ class WindowAbs(QMainWindow):
         self.title_bar.hLayout.insertWidget(0, self.action_bar)
         self.pointMode = None
 
+        self.corner_radius = 20
+        self.background_color = QColor(45, 45, 45)
+        self.border_color = QColor(80, 80, 80)
+        self.border_width = 2
+
         self.centralWidget = QWidget()
+        self.centralWidget.setObjectName("contentArea")
         super().setCentralWidget(self.centralWidget)
         self.centralLayout = QHBoxLayout(self.centralWidget)
         self.selectCentralWidget = QWidget()
+
+        self.borderOverlay = OverlayBorderWidget(self, radius=10.0, border_width=2.0)
 
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.checkMousePos)
@@ -179,6 +228,29 @@ class WindowAbs(QMainWindow):
         if self.selectCentralWidget: self.selectCentralWidget.deleteLater()
         self.selectCentralWidget = widget
         self.centralLayout.addWidget(self.selectCentralWidget)
+
+    def paintEvent(self, event):
+        self.borderOverlay._update_geometry(self.geometry().width(), self.geometry().height())
+        painter = QPainter(self)
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+
+        rect = QRectF(self.rect())
+        radius = 10.0
+
+        path = QPainterPath()
+        path.moveTo(rect.left(), rect.top() + radius)
+        path.quadTo(rect.left(), rect.top(), rect.left() + radius, rect.top())
+        path.lineTo(rect.right() - radius, rect.top())
+        path.quadTo(rect.right(), rect.top(), rect.right(), rect.top() + radius)
+        path.lineTo(rect.right(), rect.bottom() - radius)
+        path.quadTo(rect.right(), rect.bottom(), rect.right() - radius, rect.bottom())
+        path.lineTo(rect.left() + radius, rect.bottom())
+        path.quadTo(rect.left(), rect.bottom(), rect.left(), rect.bottom() - radius)
+        path.lineTo(rect.left(), rect.top() + radius)
+
+        painter.setBrush(QBrush(self.palette().color(self.backgroundRole())))
+        painter.setPen(Qt.PenStyle.NoPen)
+        painter.drawPath(path)
 
     def checkMousePos(self):
         direct = self.getDirectionMousePos()
@@ -231,29 +303,24 @@ class WindowAbs(QMainWindow):
 
     def mouseMoveEvent(self, event: QMouseEvent):
         geometry = self.geometry()
-        if self.pointMode == "top_right":
-            geometry.setTopRight(QCursor.pos())
-            self.setGeometry(geometry)
-        elif self.pointMode == "top_left":
-            geometry.setTopLeft(QCursor.pos())
-            self.setGeometry(geometry)
-        elif self.pointMode == "bottom_right":
-            geometry.setBottomRight(QCursor.pos())
-            self.setGeometry(geometry)
-        elif self.pointMode == "bottom_left":
-            geometry.setBottomLeft(QCursor.pos())
-            self.setGeometry(geometry)
-        elif self.pointMode == "top":
-            geometry.setTop(QCursor.pos().y())
-            self.setGeometry(geometry)
-        elif self.pointMode == "bottom":
-            geometry.setBottom(QCursor.pos().y())
-            self.setGeometry(geometry)
-        elif self.pointMode == "right":
-            geometry.setRight(QCursor.pos().x())
-            self.setGeometry(geometry)
-        elif self.pointMode == "left":
-            geometry.setLeft(QCursor.pos().x())
+        moveMode = ['top_right', 'top_left', 'bottom_right', 'bottom_left', 'right', 'left', 'bottom', 'top']
+        if self.pointMode in moveMode:
+            if self.pointMode == "top_right":
+                geometry.setTopRight(QCursor.pos())
+            elif self.pointMode == "top_left":
+                geometry.setTopLeft(QCursor.pos())
+            elif self.pointMode == "bottom_right":
+                geometry.setBottomRight(QCursor.pos())
+            elif self.pointMode == "bottom_left":
+                geometry.setBottomLeft(QCursor.pos())
+            elif self.pointMode == "top":
+                geometry.setTop(QCursor.pos().y())
+            elif self.pointMode == "bottom":
+                geometry.setBottom(QCursor.pos().y())
+            elif self.pointMode == "right":
+                geometry.setRight(QCursor.pos().x())
+            elif self.pointMode == "left":
+                geometry.setLeft(QCursor.pos().x())
             self.setGeometry(geometry)
 
     def setWindowTitle(self, title):
@@ -261,3 +328,120 @@ class WindowAbs(QMainWindow):
         return super().setWindowTitle(title)
 
 
+class DialogAbs(QDialog):
+    def __init__(self):
+        super().__init__()
+        self.setMinimumWidth(750)
+        self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+
+        self.main_layout = QVBoxLayout(self)
+        self.main_layout.setContentsMargins(0, 0, 0, 0)
+        self.main_layout.setSpacing(0)
+
+        self.action_bar = CustomTitleBar(self)
+        self.main_layout.addWidget(self.action_bar)
+
+        self.central_widget = QWidget()
+        self.central_layout = QHBoxLayout(self.central_widget)
+        self.central_layout.setContentsMargins(0, 0, 0, 0)
+        self.main_layout.addWidget(self.central_widget)
+
+        self.pointMode = None
+        self.dragPos = QPoint()
+
+        self.timer = QTimer(self)
+        self.timer.timeout.connect(self.checkMousePos)
+        self.timer.start(10)
+
+    def setCentralWidget(self, widget):
+        self.central_layout.addWidget(widget)
+
+    def checkMousePos(self):
+        direct = self.getDirectionMousePos()
+        cursor_map = {
+            "top_right": Qt.CursorShape.SizeBDiagCursor,
+            "bottom_left": Qt.CursorShape.SizeBDiagCursor,
+            "top_left": Qt.CursorShape.SizeFDiagCursor,
+            "bottom_right": Qt.CursorShape.SizeFDiagCursor,
+            "right": Qt.CursorShape.SizeHorCursor,
+            "left": Qt.CursorShape.SizeHorCursor,
+            "top": Qt.CursorShape.SizeVerCursor,
+            "bottom": Qt.CursorShape.SizeVerCursor
+        }
+        self.setCursor(cursor_map.get(direct, Qt.CursorShape.ArrowCursor))
+
+    def getDirectionMousePos(self):
+        pos = self.mapFromGlobal(QCursor.pos())
+        if self.isMaximized():
+            return None
+
+        margin = 10
+        width = self.width()
+        height = self.height()
+
+        if pos.x() > width - margin and pos.y() < margin:
+            return "top_right"
+        elif pos.x() < margin and pos.y() < margin:
+            return "top_left"
+        elif pos.y() < margin:
+            return "top"
+        elif pos.x() > width - margin and pos.y() > height - margin:
+            return "bottom_right"
+        elif pos.x() < margin and pos.y() > height - margin:
+            return "bottom_left"
+        elif pos.y() > height - margin:
+            return "bottom"
+        elif pos.x() > width - margin:
+            return "right"
+        elif pos.x() < margin:
+            return "left"
+        return None
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self.pointMode = self.getDirectionMousePos()
+            self.dragPos = event.position().toPoint()
+
+            if self.action_bar.geometry().contains(event.pos()) and self.pointMode is None:
+                self.pointMode = "move"
+
+    def mouseReleaseEvent(self, event):
+        self.pointMode = None
+
+    def mouseMoveEvent(self, event: QMouseEvent):
+        geometry = self.geometry()
+        pos = event.globalPosition().toPoint()
+
+        if self.pointMode == "move":
+            new_pos = pos - self.dragPos
+            self.move(new_pos)
+        elif self.pointMode == "top_right":
+            geometry.setTopRight(pos)
+            self.setGeometry(geometry)
+        elif self.pointMode == "top_left":
+            geometry.setTopLeft(pos)
+            self.setGeometry(geometry)
+        elif self.pointMode == "bottom_right":
+            geometry.setBottomRight(pos)
+            self.setGeometry(geometry)
+        elif self.pointMode == "bottom_left":
+            geometry.setBottomLeft(pos)
+            self.setGeometry(geometry)
+        elif self.pointMode == "top":
+            geometry.setTop(pos.y())
+            self.setGeometry(geometry)
+        elif self.pointMode == "bottom":
+            geometry.setBottom(pos.y())
+            self.setGeometry(geometry)
+        elif self.pointMode == "right":
+            geometry.setRight(pos.x())
+            self.setGeometry(geometry)
+        elif self.pointMode == "left":
+            geometry.setLeft(pos.x())
+            self.setGeometry(geometry)
+
+    def setWindowTitle(self, title):
+        if hasattr(self.action_bar, 'set_title'):
+            self.action_bar.set_title(title)
+        super().setWindowTitle(title)

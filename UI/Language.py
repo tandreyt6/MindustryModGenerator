@@ -47,6 +47,8 @@ class RU:
         class ActionPanel:
             run_task = "Запустить задачу"
             git_menu = "Git"
+            treeMenu = "Исследования"
+            openTreeMenu = "Открыть дерево исследования"
             project_settings = "Настройки проекта"
             settings = "Настройки"
             show_project_folder = "Показать папку проекта"
@@ -90,6 +92,7 @@ class RU:
             apply = "Применить"
             no_plugin_for_select = "Плагин не установлен"
             save_select = "Запомнить выбор"
+            plugin_created_mod_not_found = "Настройка мода может проводится только тем плагином, которым был сгенерирован мод!\nПожалуйста включите плагин '{name}'!"
             select_plugin = "Выберите плагин, который будет отвечать ща настройку проекта"
 
 
