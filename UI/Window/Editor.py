@@ -482,19 +482,20 @@ class EditorWindow(WindowAbs):
         gitMenu = QMenu(Language.Lang.Editor.ActionPanel.git_menu)
         gitMenu.addAction("Coming soon...")
 
-        treeMenu = QMenu(Language.Lang.Editor.ActionPanel.treeMenu)
+        self.treeMenu = QMenu(Language.Lang.Editor.ActionPanel.treeMenu)
         self.open_tree_action = QAction(Language.Lang.Editor.ActionPanel.openTreeMenu)
         self.open_tree_action.triggered.connect(self.showTechTree)
-        treeMenu.addAction(self.open_tree_action)
+        self.treeMenu.addAction(self.open_tree_action)
 
         self.techTree = TechTreeWindow()
+        self.techTree.project_path = self.path
 
         self.action_bar.addAction(FileMenu)
         self.action_bar.addAction(ViewMenu)
         self.action_bar.addAction(buildMenu)
         self.action_bar.addAction(testMenu)
         self.action_bar.addAction(gitMenu)
-        self.action_bar.addAction(treeMenu)
+        self.action_bar.addAction(self.treeMenu)
 
         self.central_widget = QWidget()
         self.central_widget.setObjectName("contentArea")
@@ -562,6 +563,7 @@ class EditorWindow(WindowAbs):
     def showTechTree(self):
         elements = self.get_researchable_elements()
         self.techTree.update_elements(elements)
+        self.techTree.planetsData = self.planetsData
         self.techTree.show()
         self.techTree.raise_()
 

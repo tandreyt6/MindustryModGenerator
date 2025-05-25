@@ -1,5 +1,6 @@
 import os
 import UI
+import func.Events as Events
 Main = None
 import PyQt6
 import func.memory as memory

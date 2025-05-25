@@ -4,7 +4,7 @@ import zipfile
 import hjson
 import json
 
-from PyQt6.QtGui import QIcon
+from PyQt6.QtGui import QIcon, QAction
 from PyQt6.QtWidgets import QDialog, QApplication
 
 import MmgApi
@@ -22,6 +22,15 @@ class Plugin:
     def __init__(self, app: Main):
         self.app = app
         Translate.Lang = Translate.RU if Language.Lang.type == "ru" else Translate.EN
+        MmgApi.Libs.Events.on("editorStarted", lambda x: self.onEditor(x['editor']))
+
+    def onEditor(self, editor = None):
+        self.open_tree_action = QAction("New planet")
+        self.open_tree_action.triggered.connect(self.newPlanet)
+        editor.treeMenu.addAction(self.open_tree_action)
+
+    def newPlanet(self):
+        print("newPlanet")
 
     def getContent(self):
         return {
@@ -33,7 +42,7 @@ class Plugin:
             }
         }
 
-    def getPlantes(self):
+    def getPlanets(self):
         return {
             "easy_planet": {
                 "displayName": "Easy Planet",
