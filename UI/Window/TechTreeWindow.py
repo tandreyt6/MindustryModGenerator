@@ -72,6 +72,25 @@ class TechTree:
             'nodes': self.root.to_dict()
         }
 
+    @staticmethod
+    def from_dict(d: dict) -> 'TechTree':
+        if d is None:
+            return None
+        tree = TechTree()
+        tree.planet_name = d.get('planet_name')
+        root = TechNode.from_dict(d['nodes'])
+        tree.root = root
+
+        # пробежимся по всем узлам, занесём в tree.nodes
+        def index(node: TechNode):
+            tree.nodes[node.name] = node
+            for c in node.children:
+                c.parent = node
+                index(c)
+
+        index(root)
+        return tree
+
     def generate_java_code(self, builder_var: str = None) -> str:
         start_nodes = [node for node in self.nodes.values()
                        if node.can_save and (node.parent is None or not node.parent.can_save)]
@@ -836,6 +855,25 @@ class TechTreeWindow(WindowAbs):
             self.planetsData[planet]['tree'] = None
 
         self.tabs.removeTab(index)
+
+    def get_save_dict(self) -> dict:
+        out = {}
+        for planet, pdata in self.planetsData.items():
+            tree = pdata.get('tree')
+            out[planet] = tree.to_dict() if tree else None
+        return out
+
+    def load_from_dict(self, data: dict):
+        for planet, tree_d in data.items():
+            if tree_d is None:
+                self.planetsData[planet]['tree'] = None
+            else:
+                tree = TechTree.from_dict(tree_d)
+                tree.name = planet
+                tree.planet_name = planet
+                self.planetsData[planet]['tree'] = tree
+                tab = TechTreeEditor(tree, planet)
+                self.tabs.addTab(tab, planet)
 
     def close_current_tab(self):
         index = self.tabs.currentIndex()
