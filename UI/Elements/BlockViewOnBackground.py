@@ -96,8 +96,18 @@ class CanvasWidget(QWidget):
         )
 
     def wheelEvent(self, e):
-        zoom = 1.25 if e.angleDelta().y() > 0 else 0.8
-        self.view_scale = max(self.zoom_range[0], min(self.zoom_range[1], self.view_scale * zoom))
+        zoom_factor = 1.25 if e.angleDelta().y() > 0 else 0.8
+        old_scale = self.view_scale
+        new_scale = max(self.zoom_range[0], min(self.zoom_range[1], old_scale * zoom_factor))
+        mouse_pos = e.position()
+        scene_pos = self.mapToScene(mouse_pos.toPoint())
+        self.view_scale = new_scale
+        new_offset = mouse_pos - scene_pos * self.view_scale
+        max_x_offset = -(self.scene_rect.width() * self.view_scale - self.width())
+        new_offset.setX(max(min(0, new_offset.x()), max_x_offset))
+        max_y_offset = -(self.scene_rect.height() * self.view_scale - self.height())
+        new_offset.setY(max(min(0, new_offset.y()), max_y_offset))
+        self.view_offset = new_offset
         self.update()
 
     def mousePressEvent(self, e):

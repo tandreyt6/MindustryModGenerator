@@ -111,15 +111,19 @@ class LauncherWindow(WindowAbs):
         self.v.addWidget(self.project_list)
 
     def setup_toolbar_buttons(self, toolbar):
-        self.settings_btn = QToolButton()
+        self.settings_btn = QPushButton()
+        self.settings_btn.setFixedHeight(50)
         self.settings_btn.setText(Language.Lang.Launcher.ActionsPanel.settings)
         self.settings_btn.clicked.connect(self.settings_clicked)
+        self.settings_btn.setStyleSheet("border: solid 2px #30d5c8;")
 
-        self.import_btn = QToolButton()
+        self.import_btn = QPushButton()
+        self.import_btn.setFixedHeight(50)
         self.import_btn.setText(Language.Lang.Launcher.ActionsPanel.imp_proj)
         self.import_btn.clicked.connect(self.import_project_clicked)
 
-        self.create_btn = QToolButton()
+        self.create_btn = QPushButton()
+        self.create_btn.setFixedHeight(50)
         self.create_btn.setText(Language.Lang.Launcher.ActionsPanel.crt_proj)
         self.create_btn.clicked.connect(self.create_project_clicked)
 

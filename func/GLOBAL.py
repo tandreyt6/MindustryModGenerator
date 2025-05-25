@@ -1,5 +1,6 @@
 LIST_TYPES = {}
 LIST_MOD_TEMPLATES = {}
+LIST_PLANETS_TYPES = {}
 
 SOUND_TYPES_NOLOAD = {
     "Sound.artillery": {"displayName": "Artillery"},

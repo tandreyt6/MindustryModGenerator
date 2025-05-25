@@ -27,7 +27,7 @@ from UI.Window.Editor import EditorWindow
 from UI.Window.Launcher import LauncherWindow
 from UI.Content import CacheLayer, SoundSelect
 from func import settings
-from func.GLOBAL import LIST_TYPES, LIST_MOD_TEMPLATES
+from func.GLOBAL import LIST_TYPES, LIST_MOD_TEMPLATES, LIST_PLANETS_TYPES
 from func.PluginLoader import DynamicImporter, ModulePrint
 import func.MmgApi
 func.MmgApi.Libs.UI = UI
@@ -109,7 +109,6 @@ class Main:
                 if data.get("path") == settings.get_data("openedProject"):
                     memory.put("canOpenEditor", data)
                     return
-
 
     def loadPlugThread(self):
         self.splashWindow.text.setText("Wait 0.1 second...")
@@ -280,8 +279,11 @@ class Main:
         for plug in self.loadedPlugins:
             try:
                 c = self.loadedPlugins[plug].getContent()
+                p = self.loadedPlugins[plug].getPlanets()
                 for content in c:
                     LIST_TYPES[plug + "_" + content] = c[content]
+                for content in p:
+                    LIST_PLANETS_TYPES[plug + "_" + content] = p[content]
             except Exception as e:
                 removed.append(plug)
                 traceback.print_exc()

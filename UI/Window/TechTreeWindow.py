@@ -5,10 +5,11 @@ from PyQt6.QtWidgets import (
     QSplitter, QWidget, QVBoxLayout, QHBoxLayout, QLineEdit,
     QPushButton, QLabel, QListWidget, QInputDialog, QMessageBox,
     QToolBar, QGroupBox, QStatusBar, QGraphicsView, QGraphicsScene,
-    QGraphicsRectItem, QGraphicsPathItem, QGraphicsTextItem, QComboBox, QTabWidget, QDockWidget
+    QGraphicsRectItem, QGraphicsPathItem, QGraphicsTextItem, QComboBox, QTabWidget, QDockWidget, QAbstractItemView,
+    QFileDialog
 )
 from PyQt6.QtCore import Qt, QSize, QRectF, QPointF, QRect, QEvent, QMimeData
-from PyQt6.QtGui import QFont, QIcon, QKeySequence, QAction, QPalette, QColor, QPen, QPainterPath, QBrush, QPainter
+from PyQt6.QtGui import QFont, QIcon, QKeySequence, QAction, QPalette, QColor, QPen, QPainterPath, QBrush, QPainter, QDrag
 
 from SerpuloTechTree import SerpuloTree
 from UI.Window.WindowAbs import WindowAbs
@@ -23,21 +24,95 @@ DARK_PALETTE = {
 }
 
 class TechNode:
-    def __init__(self, name: str):
+    def __init__(self, name: str, can_save = True):
         self.name = name
         self.children = []
         self.requirements = []
         self.parent = None
         self.subtree = None
+        self.can_save = can_save
         self.direction = "down"
 
     def add_requirement(self, req_type: str, *args):
         self.requirements.append((req_type, *args))
 
+    def to_dict(self):
+        return {
+            'name': self.name,
+            'can_save': self.can_save,
+            'direction': self.direction,
+            'requirements': [list(req) for req in self.requirements],
+            'children': [c.to_dict() for c in self.children]
+        }
+
+    @staticmethod
+    def from_dict(d: dict) -> 'TechNode':
+        node = TechNode(d['name'], can_save=d.get('can_save', True))
+        node.direction = d.get('direction', 'down')
+        for req in d.get('requirements', []):
+            node.add_requirement(req[0], *req[1:])
+        for cd in d.get('children', []):
+            child = TechNode.from_dict(cd)
+            child.parent = node
+            node.children.append(child)
+        return node
+
 class TechTree:
     def __init__(self):
         self.root = None
+        self.name = "serpulo"
+        self.planet_name = "serpulo"
         self.nodes = {}
+
+    def to_dict(self) -> dict:
+        if not self.root:
+            return None
+        return {
+            'planet_name': self.planet_name,
+            'nodes': self.root.to_dict()
+        }
+
+    def generate_java_code(self, builder_var: str = None) -> str:
+        start_nodes = [node for node in self.nodes.values()
+                       if node.can_save and (node.parent is None or not node.parent.can_save)]
+
+        lines = []
+        indent = 0
+
+        def add_line(line: str):
+            lines.append("    " * indent + line)
+
+        def recurse(node: TechNode):
+            nonlocal indent
+            prefix = "nodeRoot" if node is self.root else "node"
+            if prefix == "nodeRoot":
+                add_line(f"{builder_var}.{self.planet_name}.techTree = {prefix}(\"{node.name}\", {builder_var}, () -> {{")
+            else:
+                if node.requirements:
+                    reqs = []
+                    for req in node.requirements:
+                        rtype, *params = req
+                        if rtype == 'sector':
+                            reqs.append(f"new SectorComplete({params[0]})")
+                        elif rtype == 'research':
+                            reqs.append(f"new ResearchComplete({params[0]})")
+                    add_line(f"{prefix}({node.name}, Seq.with({', '.join(reqs)}), () -> {{")
+                else:
+                    add_line(f"{prefix}({node.name}, () -> {{")
+
+            indent += 1
+            for child in node.children:
+                if child.can_save:
+                    recurse(child)
+            indent -= 1
+            add_line("});")
+
+        for root_node in start_nodes:
+            if not builder_var:
+                builder_var = self.planet_name
+            recurse(root_node)
+
+        return "\n".join(lines)
 
     def add_node(self, parent_name: str, node: TechNode, requirements: list = None):
         if node.name in self.nodes:
@@ -48,7 +123,7 @@ class TechTree:
             return
         parent = self.nodes.get(parent_name)
         if not parent:
-            parent = TechNode(parent_name)
+            parent = TechNode(parent_name, True)
             self.nodes[parent_name] = parent
         node.parent = parent
         parent.children.append(node)
@@ -192,16 +267,20 @@ class DropGraphicsView(CustomGraphicsView):
 
         event.acceptProposedAction()
 
-class SourceList(QListWidget):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+class ElementsTree(QTreeWidget):
+    def __init__(self):
+        super().__init__()
         self.setDragEnabled(True)
-        self.setDragDropMode(QListWidget.DragDropMode.DragOnly)
+        self.setDragDropMode(QAbstractItemView.DragDropMode.DragOnly)
 
-    def mimeData(self, items):
-        md = QMimeData()
-        md.setText(items[0].text())
-        return md
+    def startDrag(self, supportedActions):
+        item = self.currentItem()
+        if item and item.childCount() == 0:  # Only allow dragging leaf nodes
+            mimeData = QMimeData()
+            mimeData.setText(item.text(0))
+            drag = QDrag(self)
+            drag.setMimeData(mimeData)
+            drag.exec(Qt.DropAction.CopyAction)
 
 class DropTree(QTreeWidget):
     def __init__(self, *args, **kwargs):
@@ -282,9 +361,6 @@ class TechTreeEditor(QWidget):
         self.add_action = QAction(QIcon.fromTheme("list-add"), "Add Node", self)
         self.remove_action = QAction(QIcon.fromTheme("list-remove"), "Remove Node", self)
         self.save_action = QAction(QIcon.fromTheme("document-save"), "Save", self)
-        # toolbar.addAction(self.add_action)
-        # toolbar.addAction(self.remove_action)
-        # toolbar.addAction(self.save_action)
         self.create_subtree_action = QAction("Create Subtree", self)
         self.create_subtree_action.setIcon(QIcon.fromTheme("document-new"))
         self.create_subtree_action.triggered.connect(self.create_subtree)
@@ -349,7 +425,7 @@ class TechTreeEditor(QWidget):
         self.remove_req_btn.clicked.connect(self.remove_requirement)
         self.add_action.setShortcut("Ctrl+T")
         self.remove_action.setShortcut(QKeySequence.StandardKey.Delete)
-        self.save_action.setShortcut(QKeySequence.StandardKey.Save)
+        self.save_action.setShortcut("Ctrl+S")
 
     def load_tree(self):
         self.tree.clear()
@@ -423,18 +499,11 @@ class TechTreeEditor(QWidget):
                 self.build_scene()
 
     def save_tree(self):
-        if self.current_item:
-            node = self.current_item.tech_node
-            new_name = self.name_edit.text()
-            if new_name != node.name:
-                if new_name in self.tech_tree.nodes:
-                    QMessageBox.warning(self, "Error", "Name already exists!")
-                    return
-                self.tech_tree.nodes.pop(node.name)
-                node.name = new_name
-                self.tech_tree.nodes[new_name] = node
-                self.current_item.setText(0, new_name)
-                self.build_scene()
+        java_code = self.tech_tree.generate_java_code(
+            builder_var=self.name
+        )
+        return java_code
+
 
     def add_requirement(self):
         if not self.current_item:
@@ -519,7 +588,6 @@ class TechTreeEditor(QWidget):
             item = NodeItem(node, x, y, width=width, height=height, parent=self)
             self.scene.addItem(item)
 
-            # отрисовать связь к собственному поддереву (если есть)
             if node.subtree:
                 tree_name, _ = node.subtree
                 label = QGraphicsTextItem(tree_name)
@@ -587,13 +655,11 @@ class TechTreeEditor(QWidget):
 
     def eventFilter(self, source, event):
         if event.type() == QEvent.Type.DragEnter:
-            print(event.mimeData().hasText())
             if event.mimeData().hasText():
                 event.acceptProposedAction()
                 return True
         if event.type() == QEvent.Type.Drop:
             src = event.mimeData().text()
-            print(event.mimeData())
             if source is self.tree.viewport():
                 pos = event.position().toPoint()
                 item = self.tree.itemAt(pos)
@@ -637,7 +703,7 @@ class TechTreeEditor(QWidget):
 def create_serpulo_tree():
     tree = TechTree()
     def build_tree(parent_name, node_data):
-        node = TechNode(node_data['name'])
+        node = TechNode(node_data['name'], False)
         if parent_name == 'serpulo':
             if node.name in ['conveyor', 'coreFoundation', 'mechanicalDrill', 'duo']:
                 node.direction = "up"
@@ -657,6 +723,7 @@ def create_serpulo_tree():
 class TechTreeWindow(WindowAbs):
     def __init__(self):
         super().__init__()
+        self.planetsData = {}
         self.setWindowTitle("Tab Manager")
 
         self.tabs = QTabWidget()
@@ -665,9 +732,9 @@ class TechTreeWindow(WindowAbs):
         self.setCentralWidget(self.tabs)
 
         self.dock = QDockWidget()
-        self.list_widget = SourceList()
-        self.list_widget.addItems(["ItemA", "ItemB", "ItemC"])
-        self.dock.setWidget(self.list_widget)
+        self.elements_tree = ElementsTree()
+        self.elements_tree.setHeaderHidden(True)
+        self.dock.setWidget(self.elements_tree)
         self.addDockWidget(Qt.DockWidgetArea.LeftDockWidgetArea, self.dock)
 
         self.toolbar = QToolBar("Управление вкладками")
@@ -684,6 +751,42 @@ class TechTreeWindow(WindowAbs):
 
         self.add_tab()
 
+    def closeEvent(self, a0):
+        self.tabs.widget(0).save_tree()
+        super().closeEvent(a0)
+
+    def update_elements(self, elements):
+        self.elements_tree.clear()
+        for element in elements:
+            path_parts = element['data']['path'].split('/') if element['data']['path'] else []
+            current = self.elements_tree
+            for part in path_parts:
+                current = self.find_or_create_child(current, part)
+            leaf = QTreeWidgetItem([element['name']])
+            leaf.setData(0, Qt.ItemDataRole.UserRole, element)
+            if current == self.elements_tree:
+                self.elements_tree.addTopLevelItem(leaf)
+            else:
+                current.addChild(leaf)
+
+    def find_or_create_child(self, parent, text):
+        if isinstance(parent, QTreeWidget):
+            for i in range(parent.topLevelItemCount()):
+                item = parent.topLevelItem(i)
+                if item.text(0) == text:
+                    return item
+            new_item = QTreeWidgetItem([text])
+            parent.addTopLevelItem(new_item)
+            return new_item
+        else:
+            for i in range(parent.childCount()):
+                item = parent.child(i)
+                if item.text(0) == text:
+                    return item
+            new_item = QTreeWidgetItem([text])
+            parent.addChild(new_item)
+            return new_item
+
     def add_subtree_tab(self, tree, name, parent_item):
         tab = TechTreeEditor(tree, name)
         tab.parent_link = parent_item
@@ -691,11 +794,47 @@ class TechTreeWindow(WindowAbs):
         self.tabs.setCurrentWidget(tab)
 
     def add_tab(self):
-        tab = TechTreeEditor(create_serpulo_tree(), "serpulo")
-        self.tabs.addTab(tab, tab.name)
+        free_planets = [
+            planet_name
+            for planet_name, pdata in self.planetsData.items()
+            if pdata.get('tree') is None
+        ]
+        if not free_planets:
+            QMessageBox.information(self, "Нет свободных планет", "Все планеты уже заняты деревьями.")
+            return
+
+        planet, ok = QInputDialog.getItem(
+            self, "Выбор планеты", "Планета:", free_planets, 0, False
+        )
+        if not ok or not planet:
+            return
+
+        tree = create_serpulo_tree()
+        tree.name = planet
+        tab = TechTreeEditor(tree, planet)
+        tab.parent_link = None
+        self.tabs.addTab(tab, planet)
         self.tabs.setCurrentWidget(tab)
 
+        self.planetsData[planet]['tree'] = tree
+
     def close_tab(self, index):
+        widget = self.tabs.widget(index)
+        planet = widget.name
+
+        reply = QMessageBox.question(
+            self,
+            "Удалить дерево",
+            f"Вы действительно хотите удалить дерево технологии для планеты '{planet}'?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+
+        if reply != QMessageBox.StandardButton.Yes:
+            return
+
+        if planet in self.planetsData:
+            self.planetsData[planet]['tree'] = None
+
         self.tabs.removeTab(index)
 
     def close_current_tab(self):
@@ -704,7 +843,6 @@ class TechTreeWindow(WindowAbs):
             self.tabs.removeTab(index)
         else:
             QMessageBox.information(self, "Нет вкладок", "Нет открытых вкладок для закрытия.")
-
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
