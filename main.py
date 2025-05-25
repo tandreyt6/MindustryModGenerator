@@ -30,6 +30,7 @@ from func import settings
 from func.GLOBAL import LIST_TYPES, LIST_MOD_TEMPLATES, LIST_PLANETS_TYPES
 from func.PluginLoader import DynamicImporter, ModulePrint
 import func.MmgApi
+import func.Events as Events
 func.MmgApi.Libs.UI = UI
 
 memory.put("appIsRunning", True)
@@ -290,6 +291,7 @@ class Main:
         for plug in removed:
             del self.loadedPlugins[plug]
 
+
     def initTemplates(self):
         removed = []
         for plug in self.loadedPlugins:
@@ -315,6 +317,7 @@ class Main:
             if not r: removed.append(plug)
         for plug in removed:
             del self.loadedPlugins[plug]
+        Events.fire("pluginsLoaded", self.loadedPlugins)
 
     def load_recent(self):
         for i in self.projects:
@@ -378,6 +381,7 @@ class Main:
         self.editor.saveRequested.connect(self.editorGeometrySave)
         self.editor.closeSignal.connect(self.closeEditor)
         self.editor.settingsWindowRequest.connect(self.openSettings)
+        Events.fire("editorStarted", {"editor": self.editor})
         self.editor.show()
         self.editor.setFocus()
 

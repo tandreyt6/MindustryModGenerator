@@ -16,6 +16,14 @@ class Language:
     Langs = {"ru": ("Русский", RU), "en": ("English", EN)}
     Lang: EN = None
 
+class Events:
+    @staticmethod
+    def on(name: str, executableFunc: object):
+        pass
+    @staticmethod
+    def fire(name: str, argv: list|dict):
+        pass
+
 class Main:
     """Main application controller class handling core functionality including:
     - Plugin management

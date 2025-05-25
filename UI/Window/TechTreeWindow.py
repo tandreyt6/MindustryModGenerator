@@ -1,3 +1,4 @@
+import os
 import sys
 import json
 from PyQt6.QtWidgets import (
@@ -739,9 +740,11 @@ def create_serpulo_tree():
     build_tree(None, SerpuloTree)
     return tree
 
+
 class TechTreeWindow(WindowAbs):
     def __init__(self):
         super().__init__()
+        self.project_path = None
         self.planetsData = {}
         self.setWindowTitle("Tab Manager")
 
@@ -768,7 +771,9 @@ class TechTreeWindow(WindowAbs):
         close_tab_action.triggered.connect(self.close_current_tab)
         self.toolbar.addAction(close_tab_action)
 
-        self.add_tab()
+        tab = TechTreeEditor(create_serpulo_tree(), "serpulo")
+        self.tabs.addTab(tab, tab.name)
+        self.tabs.setCurrentWidget(tab)
 
     def closeEvent(self, a0):
         self.tabs.widget(0).save_tree()
@@ -875,12 +880,38 @@ class TechTreeWindow(WindowAbs):
                 tab = TechTreeEditor(tree, planet)
                 self.tabs.addTab(tab, planet)
 
+    def save_to_file(self):
+        try:
+            path = os.path.join(self.project_path, "tech_trees.json")
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(self.get_save_dict(), f, indent=2, ensure_ascii=False)
+        except Exception as e:
+            QMessageBox.warning(self, "Ошибка сохранения", f"Не удалось сохранить tech_trees.json:\n{e}")
+
+    def load_from_file(self):
+        path = os.path.join(self.project_path, "tech_trees.json")
+        if not os.path.exists(path):
+            return
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            self.load_from_dict(data)
+        except Exception as e:
+            QMessageBox.warning(self, "Ошибка загрузки", f"Не удалось загрузить tech_trees.json:\n{e}")
+
+    def closeEvent(self, event):
+        # перед закрытием окна сохраняем
+        self.save_to_file()
+        super().closeEvent(event)
+
     def close_current_tab(self):
         index = self.tabs.currentIndex()
         if index != -1:
             self.tabs.removeTab(index)
         else:
             QMessageBox.information(self, "Нет вкладок", "Нет открытых вкладок для закрытия.")
+
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
