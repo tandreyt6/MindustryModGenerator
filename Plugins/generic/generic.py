@@ -11,6 +11,7 @@ import MmgApi
 from MmgApi.Libs import UI, Main, PyQt6, Language
 from .dialogs.Create145Dil import ProjectDialog
 from .content.Wall import Wall
+from .content.easy_planet import PlanetDialog
 import Language as Translate
 
 CentAbsWidget = UI.Content.CentralAbstractWidget.CentAbsWidget
@@ -26,10 +27,18 @@ class Plugin:
         return {
             "wall": {
                 "displayName": "Wall",
-                "plugin": "generic",
                 "type": Wall,
                 "end": ".java",
                 "centralWidget": CanvasWidget
+            }
+        }
+
+    def getPlantes(self):
+        return {
+            "easy_planet": {
+                "displayName": "Easy Planet",
+                "type": PlanetDialog,
+                "end": ".java"
             }
         }
 
