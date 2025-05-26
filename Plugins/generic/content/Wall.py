@@ -118,37 +118,6 @@ class Wall(ContentAbstract):
 
         return changed
 
-    def java_code(self):
-        changed = self.get_changed_params()
-        print(changed)
-        params = []
-        for key, value in changed.items():
-            java_value = self._convert_to_java(value)
-            if key == "requirements":
-                params.append(f"        {java_value}")
-                continue
-            elif key == "package":
-                continue
-            params.append(f"        {key} = {java_value};")
-        return f"package {self.package};\n" \
-               f"\nimport mindustry.content.Items;\n" \
-               f"import mindustry.type.Category;\n" \
-               f"import mindustry.type.ItemStack;\n" \
-               f"import mindustry.world.blocks.defense.Wall;\n" \
-               f"\npublic class {self.get_java_class_name()} extends Wall {{\n" \
-               f"    public {self.get_java_class_name()}() {{\n" \
-               f'        super("{self.get_java_class_name()}");\n' \
-               f"{self._get_params(params)}\n" \
-               f"    }}\n" \
-               f"}}"
-
-    def create_java_code(self):
-        print(self.package, self.get_java_class_name())
-        return [
-            f"import {self.package}.{self.get_java_class_name()};",
-            f"new {self.get_java_class_name()}();"
-        ]
-
     def _convert_to_java(self, value):
         if isinstance(value, bool):
             return "true" if value else "false"
