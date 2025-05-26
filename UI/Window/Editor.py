@@ -598,6 +598,7 @@ class EditorWindow(WindowAbs):
         dialog.exec()
 
     def buildTask(self):
+        self.generateAllElements()
         def build_executor(splash_dialog):
             splash_dialog.text.setText(Language.Lang.Editor.Dialog.start_task.format(name="Clean"))
             success, message = self.gradlewManager.clean()
@@ -814,36 +815,18 @@ class EditorWindow(WindowAbs):
     def init_test_data(self):
         pass
 
-    def generateImportJavaCode(self) -> str:
-        imports = ""
-        inits = []
-        variabeles = ""
-        for key in self.elementsData.data:
-            name = self.elementsData.data[key]['name']
-            if self.elementsData[name]['tab'] is not None:
-                cls: Content = self.elementsData[name]['tab_content']["w2"].classe
-            else:
-                cls: Content = LIST_TYPES.get(self.elementsData[name]['data']['content'])['type'](-1, name)
-            pth = [_ for _ in self.elementsData[name]['data']['path'].split("/") if _.strip() != '']
-            print(pth, "pth")
-            if len(pth) > 0:
-                cls.package = self.package + ".content." + ".".join(pth)
-            else:
-                cls.package = self.package + ".content"
-            codes = cls.create_java_code()
-            imports += f"{codes[0]}\n"
-            var = "    public " + cls.get_java_class_name() + " var_" + cls.get_java_class_name().strip() + ";"
-            variabeles += var + "\n"
-            inits.append(f"        this." + "var_" + cls.get_java_class_name().strip() + " = " + codes[1])
-        inits = "\n".join(inits)
+    def generateImportJavaCode(self, imports, inits) -> str:
+        im = "\n".join(imports)
+        vr = '\n'.join([f'  {_[2]} {_[1]};' for _ in inits])
+        ex = '\n'.join([f'      this.{_[1]} = {_[0]}' for _ in inits])
         template = \
             f"""package {self.package};
 
-{imports}
+{im}
 
 public class initScript {{
 
-{variabeles}
+{vr}
 
     void initScript(){{
 
@@ -851,18 +834,29 @@ public class initScript {{
 
     public void loadContent() 
     {{
-{inits}
+{ex}
     }}
 }}
         """
         return template
 
-    def saveInitScript(self):
-        text = self.generateImportJavaCode()
+    def saveInitScript(self, text):
         path = self.path + f"/src/{'/'.join(self.package.split('.'))}/initScript.java"
         print(path)
         with open(path, "w", encoding="utf-8") as e:
             e.write(text)
+
+    def generateAllElements(self):
+        imports = []
+        create = []
+        for plugname, plugin in self.main.loadedPlugins.items():
+            if not plugin.hasConstructor(): continue
+            x = plugin.getConstructor().saveElements(self.elementsData, self.package)
+            for im, ex in x:
+                imports.append(im)
+                create.append(ex)
+        text = self.generateImportJavaCode(imports, create)
+        self.saveInitScript(text)
 
     def createItem(self, item: TreeWidgetItem | TreeWidget):
         def check():
@@ -1022,17 +1016,6 @@ public class initScript {{
                 item_text = tab["item"].text(0)
                 self.elementsData[item_text]["data"]["data"] = tab["item"].data["data"] = data
                 self.saveElementsData()
-                cls: Content = widget.classe
-                cls.loadFromDict(data)
-                pkg = [self.package + ".content"] + tab["item"].get_path()[:-1]
-                cls.package = ".".join(pkg)
-                path = os.path.join(CONTENT_FOLDER.format(package="/".join(self.package.split('.'))), *pkg[1:]).replace(
-                    "~", self.path)
-                os.makedirs(path, exist_ok=True)
-                with open(os.path.join(path, item_text + self.elementsData[item_text]['data']['end']), "w",
-                          encoding="utf-8") as e:
-                    e.write(cls.java_code())
-                self.saveInitScript()
                 self.setActionLabel(Language.Lang.Editor.ActionPanel.item_has_been_saved.format(name=item_text))
                 return True
         return False

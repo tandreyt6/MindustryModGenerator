@@ -8,6 +8,7 @@ from PyQt6.QtGui import QIcon, QAction
 from PyQt6.QtWidgets import QDialog, QApplication
 
 import MmgApi
+from JavaConstructor import JavaConstructor
 from MmgApi.Libs import UI, Main, PyQt6, Language
 from .dialogs.Create145Dil import ProjectDialog
 from .content.Wall import Wall
@@ -50,6 +51,12 @@ class Plugin:
                 "end": ".java"
             }
         }
+
+    def getConstructor(self):
+        return JavaConstructor(self)
+
+    def hasConstructor(self):
+        return True
 
     def initComplite(self):
         print("generic loaded!")
