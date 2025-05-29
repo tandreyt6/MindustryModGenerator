@@ -25,7 +25,7 @@ from UI.Window.WindowAbs import WindowAbs
 from func import settings
 from func.GLOBAL import CONTENT_FOLDER, LIST_TYPES
 from func.Types.Content import Content
-from UI.Window.TechTreeWindow import TechTreeWindow
+from UI.Window.TechTreeWindow import TechTreeWindow, TechTreeEditor
 
 
 class TreeWidgetItem(QTreeWidgetItem):
@@ -489,6 +489,7 @@ class EditorWindow(WindowAbs):
 
         self.techTree = TechTreeWindow()
         self.techTree.project_path = self.path
+        self.techTree.load_from_file()
 
         self.action_bar.addAction(FileMenu)
         self.action_bar.addAction(ViewMenu)
@@ -558,7 +559,7 @@ class EditorWindow(WindowAbs):
         self.show()
 
     def get_researchable_elements(self):
-        return [el for el in self.elementsData.data.values() if el['data']['data'].get('_canResearch', False)]
+        return [el for el in self.elementsData.data.values() if el['data']['data'].get('_canResearch', True)]
 
     def showTechTree(self):
         elements = self.get_researchable_elements()
@@ -857,6 +858,10 @@ public class initScript {{
                 create.append(ex)
         text = self.generateImportJavaCode(imports, create)
         self.saveInitScript(text)
+        for index in range(self.techTree.tabs.count()):
+            w: TechTreeEditor = self.techTree.tabs.widget(index)
+            print(w.tech_tree.generate_java_code())
+
 
     def createItem(self, item: TreeWidgetItem | TreeWidget):
         def check():
