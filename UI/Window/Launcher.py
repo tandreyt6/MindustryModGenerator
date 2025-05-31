@@ -195,26 +195,3 @@ class LauncherWindow(WindowAbs):
     def closeEvent(self, event):
         self.close_signal.emit()
         event.ignore()
-
-
-if __name__ == "__main__":
-    app = QApplication(sys.argv)
-
-    palette = QPalette()
-    palette.setColor(QPalette.ColorRole.Window, QColor(30, 30, 30))
-    palette.setColor(QPalette.ColorRole.WindowText, QColor(255, 215, 0))
-    palette.setColor(QPalette.ColorRole.Button, QColor(51, 51, 51))
-    palette.setColor(QPalette.ColorRole.ButtonText, QColor(255, 215, 0))
-    app.setPalette(palette)
-
-    window = LauncherWindow()
-
-    window.settings_clicked.connect(lambda: print("Настройки clicked"))
-    window.import_project_clicked.connect(lambda: print("Импорт проекта clicked"))
-    window.create_project_clicked.connect(lambda: print("Создать проект clicked"))
-    window.project_open_clicked.connect(lambda data: print(f"Открыть проект: {data}"))
-    window.project_open_dir_clicked.connect(lambda data: print(f"Открыть папку: {data}"))
-    window.project_delete_clicked.connect(lambda data: print(f"Удалить проект: {data}"))
-
-    window.show()
-    sys.exit(app.exec())

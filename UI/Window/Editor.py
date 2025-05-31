@@ -957,7 +957,6 @@ public class initScript {{
                         path = data[name]["path"].split("/")
                         path.append(name)
                         item = self.add_item_from_name(name, path)
-                        # Принудительно устанавливаем _canResearch: True для wall1
                         if name == "wall1":
                             data[name]["data"]["_canResearch"] = True
                         self.elementsData.add(name, "/".join(item.get_path()), id(item), {

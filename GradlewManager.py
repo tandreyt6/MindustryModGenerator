@@ -1,4 +1,3 @@
-import platform
 import subprocess
 import os
 from typing import List, Optional, Tuple
@@ -123,21 +122,3 @@ class GradleWrapper:
             return None
         except Exception:
             return None
-
-
-# Пример использования
-if __name__ == "__main__":
-    try:
-        gradle = GradleWrapper("/path/to/your/project")
-
-        success, output = gradle.build()
-        print(f"Build {'successful' if success else 'failed'}: {output}")
-
-        success, version = gradle.get_version()
-        if success:
-            print(f"Gradle version: {version}")
-
-        success, output = gradle.run_task("test", ["--tests", "com.example.MyTest"])
-
-    except FileNotFoundError as e:
-        print(f"Error: {str(e)}")

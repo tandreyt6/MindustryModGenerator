@@ -1,6 +1,3 @@
-import sys
-import os
-import re
 from PyQt6.QtWidgets import (
     QApplication, QDialog, QFormLayout, QLabel, QLineEdit,
     QPushButton, QFileDialog, QComboBox, QMessageBox, QHBoxLayout, QWidget
@@ -50,10 +47,3 @@ class ProjectDialog(QDialog):
             layout.addRow(h)
 
         self.setLayout(layout)
-
-
-if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    dialog = ProjectDialog()
-    dialog.exec()
-    sys.exit(app.exec())

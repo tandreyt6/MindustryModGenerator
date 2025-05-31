@@ -1,4 +1,3 @@
-from threading import Thread
 
 from PyQt6.QtWidgets import QApplication, QWidget, QLabel, QVBoxLayout, QSplashScreen, QHBoxLayout, QPushButton, \
     QSizePolicy

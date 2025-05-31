@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import QFormLayout, QHBoxLayout, QLineEdit, QPushButton, QComboBox, QFileDialog, QLabel
 from .RoundedDialog import RoundedDialog
-import Language as Translate
+import UI.Language as Translate
 
 class ProjectDialog(RoundedDialog):
     def __init__(self, parent=None):

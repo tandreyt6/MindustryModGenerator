@@ -75,7 +75,7 @@ class ProtectedConsole(QPlainTextEdit):
         if self.textCursor().hasSelection():
             self.handleCopy()
         else:
-            self.parent().sendControlSignal(b'\x03')  # Ctrl+C
+            self.parent().sendControlSignal(b'\x03')
 
     def handleCtrlV(self):
         cursor = self.textCursor()

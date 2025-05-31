@@ -71,10 +71,3 @@ class CreateElementDialog(QDialog):
             self.category_edit.blockSignals(True)
             self.category_edit.setText("".join([_ if _.lower() in self.valid_path else "_" for _ in text]))
             self.category_edit.blockSignals(False)
-
-
-if __name__ == "__main__":
-    app = QApplication([])
-    dialog = CreateElementDialog()
-    dialog.show()
-    app.exec()
