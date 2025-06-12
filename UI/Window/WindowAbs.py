@@ -149,51 +149,131 @@ class CustomActionBar(QWidget):
         else:
             self.collapse()
 
-class OverlayBorderWidget(QWidget):
-    def __init__(self, parent, radius=10.0, border_width=2.0):
-        super().__init__(parent, Qt.WindowType.FramelessWindowHint)
-        self.radius = radius
-        self.border_width = border_width
+class OutlineWidget(QWidget):
+    def __init__(self, parent, window_manager):
+        super().__init__(parent)
+        self.window_manager = window_manager
+        self.parent_window = parent
 
-        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.setWindowFlags(
+            Qt.WindowType.FramelessWindowHint |
+            Qt.WindowType.WindowStaysOnTopHint |
+            Qt.WindowType.Tool
+        )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        self.setAutoFillBackground(False)
+        self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents)
+        self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
 
-        self._update_geometry(600, 600)
-        self.show()
+        self.update_position()
+        self.hide()
 
-    def _update_geometry(self, w, h):
-        self.setGeometry(0, 0,
-                         w,
-                         h)
-        self.raise_()
+    def update_position(self):
+        if self.parent_window:
+            global_pos = self.parent_window.mapToGlobal(QPoint(0, 0))
+
+            self.setGeometry(
+                global_pos.x(),
+                global_pos.y(),
+                self.parent_window.width(),
+                self.parent_window.height()
+            )
+            self.update()
 
     def paintEvent(self, event):
+        if not self.parent_window or not self.parent_window.isActiveWindow():
+            return
+
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-
-        bw = self.border_width
-        rect = QRectF(bw/2, bw/2,
-                      self.width() - bw,
-                      self.height() - bw)
-        r = self.radius
-
-        path = QPainterPath()
-        path.moveTo(rect.left(),   rect.top()   + r)
-        path.quadTo(rect.left(),   rect.top(),    rect.left()   + r, rect.top())
-        path.lineTo(rect.right()  - r, rect.top())
-        path.quadTo(rect.right(),  rect.top(),    rect.right(),    rect.top()   + r)
-        path.lineTo(rect.right(),  rect.bottom() - r)
-        path.quadTo(rect.right(),  rect.bottom(), rect.right()  - r, rect.bottom())
-        path.lineTo(rect.left()   + r, rect.bottom())
-        path.quadTo(rect.left(),   rect.bottom(), rect.left(),     rect.bottom() - r)
-        path.lineTo(rect.left(),   rect.top()   + r)
-
-        pen = QPen(self.parent().palette().color(self.parent().foregroundRole()))
-        pen.setWidthF(bw)
+        pen = QPen(QColor(255, 255, 255), 4)
         painter.setPen(pen)
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.drawPath(path)
+
+        parent_rect_global = self.parent_window.frameGeometry()
+        parent_global_top_left = parent_rect_global.topLeft()
+
+        other_windows = [
+            w for w in self.window_manager.windows
+            if w is not self.parent_window and w.isVisible() and not w.isMinimized()
+        ]
+
+        for win in other_windows:
+            win_rect = win.frameGeometry()
+            intersection = parent_rect_global.intersected(win_rect)
+
+            if not intersection.isNull():
+                local_intersection = intersection.translated(-parent_global_top_left)
+
+                if intersection.top() == parent_rect_global.top():
+                    painter.drawLine(
+                        local_intersection.left(),
+                        0,
+                        local_intersection.right(),
+                        0
+                    )
+
+                if intersection.bottom() == parent_rect_global.bottom():
+                    painter.drawLine(
+                        local_intersection.left(),
+                        self.height() - 1,
+                        local_intersection.right(),
+                        self.height() - 1
+                    )
+
+                if intersection.left() == parent_rect_global.left():
+                    painter.drawLine(
+                        0,
+                        local_intersection.top(),
+                        0,
+                        local_intersection.bottom()
+                    )
+
+                if intersection.right() == parent_rect_global.right():
+                    painter.drawLine(
+                        self.width() - 1,
+                        local_intersection.top(),
+                        self.width() - 1,
+                        local_intersection.bottom()
+                    )
+
+class WindowManager:
+    _instance = None
+
+    @classmethod
+    def instance(cls):
+        if cls._instance is None:
+            cls._instance = WindowManager()
+        return cls._instance
+
+    def __init__(self):
+        self.windows = []
+        self.position_timer = QTimer()
+        self.position_timer.timeout.connect(self.check_window_positions)
+        self.position_timer.start(100)
+
+    def add_window(self, window):
+        self.windows.append(window)
+        self.update_active_window_outline()
+
+    def remove_window(self, window):
+        if window in self.windows:
+            self.windows.remove(window)
+        self.update_active_window_outline()
+
+    def update_active_window_outline(self):
+        active_window = QApplication.activeWindow()
+        for window in self.windows:
+            if hasattr(window, 'outline_widget'):
+                if window is active_window:
+                    window.outline_widget.update_position()
+                    window.outline_widget.show()
+                    window.outline_widget.raise_()
+                else:
+                    window.outline_widget.hide()
+
+    def check_window_positions(self):
+        for window in self.windows:
+            if hasattr(window, 'outline_widget') and window.isActiveWindow():
+                window.outline_widget.update_position()
+
 
 class WindowAbs(QMainWindow):
     def __init__(self):
@@ -201,6 +281,14 @@ class WindowAbs(QMainWindow):
         self.setMinimumWidth(750)
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+
+        self.outline_widget = OutlineWidget(None, WindowManager.instance())
+        self.outline_widget.parent_window = self
+        self.outline_widget.update_position()
+        self.outline_widget.hide()
+
+        WindowManager.instance().add_window(self)
+
         self.title_bar = CustomTitleBar(self)
         self.setMenuWidget(self.title_bar)
         self.action_bar = CustomActionBar(self)
@@ -218,24 +306,22 @@ class WindowAbs(QMainWindow):
         self.centralLayout = QHBoxLayout(self.centralWidget)
         self.selectCentralWidget = QWidget()
 
-        self.borderOverlay = OverlayBorderWidget(self, radius=10.0, border_width=2.0)
-
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.checkMousePos)
         self.timer.start(10)
 
     def setCentralWidget(self, widget):
-        if self.selectCentralWidget: self.selectCentralWidget.deleteLater()
+        if self.selectCentralWidget:
+            self.selectCentralWidget.deleteLater()
         self.selectCentralWidget = widget
         self.centralLayout.addWidget(self.selectCentralWidget)
 
     def paintEvent(self, event):
-        self.borderOverlay._update_geometry(self.geometry().width(), self.geometry().height())
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
         rect = QRectF(self.rect())
-        radius = 10.0
+        radius = self.corner_radius
 
         path = QPainterPath()
         path.moveTo(rect.left(), rect.top() + radius)
@@ -248,7 +334,7 @@ class WindowAbs(QMainWindow):
         path.quadTo(rect.left(), rect.bottom(), rect.left(), rect.bottom() - radius)
         path.lineTo(rect.left(), rect.top() + radius)
 
-        painter.setBrush(QBrush(self.palette().color(self.backgroundRole())))
+        painter.setBrush(QBrush(self.background_color))
         painter.setPen(Qt.PenStyle.NoPen)
         painter.drawPath(path)
 
@@ -269,7 +355,6 @@ class WindowAbs(QMainWindow):
             self.title_bar.title.setVisible(not self.geometry().width() < 850)
         elif not self.action_bar.is_expanded:
             self.title_bar.title.setVisible(True)
-
 
     def getDirectionMousePos(self):
         pos = self.mapFromGlobal(QCursor.pos())
@@ -297,9 +382,11 @@ class WindowAbs(QMainWindow):
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
             self.pointMode = self.getDirectionMousePos()
+        super().mousePressEvent(event)
 
     def mouseReleaseEvent(self, event):
         self.pointMode = None
+        super().mouseReleaseEvent(event)
 
     def mouseMoveEvent(self, event: QMouseEvent):
         geometry = self.geometry()
@@ -322,10 +409,32 @@ class WindowAbs(QMainWindow):
             elif self.pointMode == "left":
                 geometry.setLeft(QCursor.pos().x())
             self.setGeometry(geometry)
+        super().mouseMoveEvent(event)
 
     def setWindowTitle(self, title):
         self.title_bar.title.setText(title)
         return super().setWindowTitle(title)
+
+    def closeEvent(self, event):
+        # WindowManager.instance().remove_window(self)
+        self.outline_widget.close()
+        super().closeEvent(event)
+
+    def moveEvent(self, event):
+        super().moveEvent(event)
+        self.outline_widget.update_position()
+        WindowManager.instance().update_active_window_outline()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self.outline_widget.update_position()
+        WindowManager.instance().update_active_window_outline()
+
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        if event.type() == QEvent.Type.ActivationChange:
+            WindowManager.instance().update_active_window_outline()
+            self.outline_widget.update_position()
 
 
 class DialogAbs(QDialog):

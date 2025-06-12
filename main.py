@@ -385,7 +385,7 @@ class Main:
 
     def openProject(self, data: dict):
         settings.save_data("openedProject", data.get("path"))
-        recent = settings.get_data('recent')
+        recent = settings.get_data('recent', [])
         if not data in recent:
             recent.append(data)
             settings.save_data("recent", recent)
