@@ -1,10 +1,13 @@
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QHBoxLayout,
     QPushButton, QApplication, QLabel,
-    QSizeGrip, QVBoxLayout, QFrame, QToolButton, QMenu, QDialog
+    QSizeGrip, QVBoxLayout, QFrame, QToolButton, QMenu, QDialog, QGraphicsOpacityEffect
 )
-from PyQt6.QtCore import Qt, QPoint, QRect, QEvent, QVariantAnimation, QEasingCurve, QTimer, QSize, QPointF, QRectF
+from PyQt6.QtCore import Qt, QPoint, QRect, QEvent, QVariantAnimation, QEasingCurve, QTimer, QSize, QPointF, QRectF, \
+    QParallelAnimationGroup, QPropertyAnimation, QSequentialAnimationGroup
 from PyQt6.QtGui import QMouseEvent, QResizeEvent, QAction, QCursor, QPainterPath, QPainter, QColor, QBrush, QPen
+
+from UI.Window.WindowsAbstractWindow import WindowsFramelessWindow
 
 
 class CustomTitleBar(QFrame):
@@ -74,7 +77,7 @@ class CustomTitleBar(QFrame):
             event.accept()
 
 class CustomActionBar(QWidget):
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, spacing=5):
         super().__init__(parent)
         self.setObjectName("CustomActionBar")
         self.setStyleSheet("background-color: transparent;")
@@ -82,51 +85,79 @@ class CustomActionBar(QWidget):
         self.hLayout = QHBoxLayout(self)
         self.hLayout.setContentsMargins(4, 4, 4, 4)
         self.hLayout.setSpacing(2)
+
         self.toggle_button = QPushButton("☰")
         self.toggle_button.setFixedSize(28, 28)
         self.toggle_button.setObjectName("ActionPanelButton")
         self.toggle_button.clicked.connect(self.toggle_actions)
         self.toggle_button.setVisible(False)
+
         self.actions_container = QWidget()
         self.actions_layout = QHBoxLayout(self.actions_container)
         self.actions_layout.setContentsMargins(0, 0, 0, 0)
-        self.actions_layout.setSpacing(4)
+        self.actions_layout.setSpacing(spacing)
         self.actions_container.setFixedWidth(0)
+
         self.hLayout.addWidget(self.toggle_button)
         self.hLayout.addWidget(self.actions_container)
         self.hLayout.addStretch()
+
         self.is_expanded = False
         self.animation = None
+        self.action_buttons = []
 
     def addAction(self, action, icon=None):
+        self.toggle_button.setVisible(True)
+
         if isinstance(action, QAction):
-            self.toggle_button.setVisible(True)
             button = QToolButton()
             button.setDefaultAction(action)
-            button.setFixedSize(100, 28)
-            button.setObjectName("ActionPanelButton")
-            self.actions_layout.addWidget(button)
         elif isinstance(action, QMenu):
-            self.toggle_button.setVisible(True)
             button = QPushButton(action.title())
             if icon:
                 button.setIcon(icon)
-            button.setFixedSize(100, 28)
-            button.setObjectName("ActionPanelButton")
             button.setMenu(action)
-            self.actions_layout.addWidget(button)
         else:
             raise ValueError("Action must be QAction or QMenu")
 
+        button.setFixedSize(100, 28)
+        button.setObjectName("ActionPanelButton")
+        button.setVisible(False)
+        self.actions_layout.addWidget(button)
+        self.action_buttons.append(button)
+
     def expand(self):
-        desired_width = max(self.actions_layout.sizeHint().width(), 100)
+        desired_width = (100 + self.actions_layout.spacing()) * len(self.action_buttons)
+        desired_width = max(desired_width, 100)
+
+        self.actions_container.setMinimumWidth(desired_width)
+        self.actions_container.setMaximumWidth(desired_width)
+
         self.animation = QVariantAnimation(self)
-        self.animation.setStartValue(0)
+        self.animation.setStartValue(self.actions_container.width())
         self.animation.setEndValue(desired_width)
-        self.animation.setDuration(500)
+        self.animation.setDuration(150)
         self.animation.setEasingCurve(QEasingCurve.Type.OutExpo)
-        self.animation.valueChanged.connect(lambda value: self.actions_container.setFixedWidth(value))
+        self.animation.valueChanged.connect(lambda value: self.actions_container.setFixedWidth(int(value)))
         QTimer.singleShot(0, self.animation.start)
+
+        for btn in self.action_buttons:
+            btn.setVisible(True)
+            effect = QGraphicsOpacityEffect(btn)
+            btn.setGraphicsEffect(effect)
+            effect.setOpacity(0)
+
+        group = QSequentialAnimationGroup(self)
+        for i, btn in enumerate(self.action_buttons):
+            opacity_anim = QPropertyAnimation(btn.graphicsEffect(), b"opacity")
+            opacity_anim.setDuration(100)
+            opacity_anim.setStartValue(0)
+            opacity_anim.setEndValue(1)
+            opacity_anim.setEasingCurve(QEasingCurve.Type.OutQuad)
+            group.addAnimation(opacity_anim)
+
+        QTimer.singleShot(200, group.start)
+
         self.is_expanded = True
 
     def collapse(self):
@@ -136,12 +167,15 @@ class CustomActionBar(QWidget):
         self.animation.setEndValue(0)
         self.animation.setDuration(500)
         self.animation.setEasingCurve(QEasingCurve.Type.InExpo)
-        self.animation.valueChanged.connect(lambda value: self.actions_container.setFixedWidth(value))
+        self.animation.valueChanged.connect(lambda value: self.actions_container.setFixedWidth(int(value)))
         QTimer.singleShot(0, self.animation.start)
+
+        for btn in self.action_buttons:
+            btn.setVisible(False)
+
         self.is_expanded = False
 
     def toggle_actions(self):
-        self.actions_layout.update()
         if self.animation:
             self.animation.stop()
         if not self.is_expanded:
@@ -274,168 +308,13 @@ class WindowManager:
             if hasattr(window, 'outline_widget') and window.isActiveWindow():
                 window.outline_widget.update_position()
 
-
-class WindowAbs(QMainWindow):
+class WindowAbs(WindowsFramelessWindow):
     def __init__(self):
         super().__init__()
         self.setMinimumWidth(750)
-        self.setWindowFlags(Qt.WindowType.FramelessWindowHint)
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-
-        self.outline_widget = OutlineWidget(None, WindowManager.instance())
-        self.outline_widget.parent_window = self
-        self.outline_widget.update_position()
-        self.outline_widget.hide()
-
-        WindowManager.instance().add_window(self)
-
-        self.title_bar = CustomTitleBar(self)
-        self.setMenuWidget(self.title_bar)
         self.action_bar = CustomActionBar(self)
-        self.title_bar.hLayout.insertWidget(0, self.action_bar)
-        self.pointMode = None
-
-        self.corner_radius = 20
-        self.background_color = QColor(45, 45, 45)
-        self.border_color = QColor(80, 80, 80)
-        self.border_width = 2
-
-        self.centralWidget = QWidget()
-        self.centralWidget.setObjectName("contentArea")
-        super().setCentralWidget(self.centralWidget)
-        self.centralLayout = QHBoxLayout(self.centralWidget)
-        self.selectCentralWidget = QWidget()
-
-        self.timer = QTimer(self)
-        self.timer.timeout.connect(self.checkMousePos)
-        self.timer.start(10)
-
-    def setCentralWidget(self, widget):
-        if self.selectCentralWidget:
-            self.selectCentralWidget.deleteLater()
-        self.selectCentralWidget = widget
-        self.centralLayout.addWidget(self.selectCentralWidget)
-
-    def paintEvent(self, event):
-        painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-
-        rect = QRectF(self.rect())
-        radius = self.corner_radius
-
-        path = QPainterPath()
-        path.moveTo(rect.left(), rect.top() + radius)
-        path.quadTo(rect.left(), rect.top(), rect.left() + radius, rect.top())
-        path.lineTo(rect.right() - radius, rect.top())
-        path.quadTo(rect.right(), rect.top(), rect.right(), rect.top() + radius)
-        path.lineTo(rect.right(), rect.bottom() - radius)
-        path.quadTo(rect.right(), rect.bottom(), rect.right() - radius, rect.bottom())
-        path.lineTo(rect.left() + radius, rect.bottom())
-        path.quadTo(rect.left(), rect.bottom(), rect.left(), rect.bottom() - radius)
-        path.lineTo(rect.left(), rect.top() + radius)
-
-        painter.setBrush(QBrush(self.background_color))
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.drawPath(path)
-
-    def checkMousePos(self):
-        direct = self.getDirectionMousePos()
-        if direct in ["top_right", "bottom_left"]:
-            self.setCursor(Qt.CursorShape.SizeBDiagCursor)
-        elif direct in ["top_left", "bottom_right"]:
-            self.setCursor(Qt.CursorShape.SizeFDiagCursor)
-        elif direct in ["right", "left"]:
-            self.setCursor(Qt.CursorShape.SizeHorCursor)
-        elif direct in ["top", "bottom"]:
-            self.setCursor(Qt.CursorShape.SizeVerCursor)
-        else:
-            self.setCursor(Qt.CursorShape.ArrowCursor)
-
-        if self.action_bar.is_expanded:
-            self.title_bar.title.setVisible(not self.geometry().width() < 850)
-        elif not self.action_bar.is_expanded:
-            self.title_bar.title.setVisible(True)
-
-    def getDirectionMousePos(self):
-        pos = self.mapFromGlobal(QCursor.pos())
-        pointMode = None
-        if self.isMaximized():
-            return None
-        if pos.x() > self.width() - 10 and pos.y() < 10:
-            pointMode = "top_right"
-        elif pos.x() < 10 and pos.y() < 10:
-            pointMode = "top_left"
-        elif pos.y() < 10:
-            pointMode = "top"
-        elif pos.x() > self.width() - 10 and pos.y() > self.height() - 10:
-            pointMode = "bottom_right"
-        elif pos.x() < 10 and pos.y() > self.height() - 10:
-            pointMode = "bottom_left"
-        elif pos.y() > self.height() - 10:
-            pointMode = "bottom"
-        elif pos.x() > self.width() - 10:
-            pointMode = "right"
-        elif pos.x() < 10:
-            pointMode = "left"
-        return pointMode
-
-    def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
-            self.pointMode = self.getDirectionMousePos()
-        super().mousePressEvent(event)
-
-    def mouseReleaseEvent(self, event):
-        self.pointMode = None
-        super().mouseReleaseEvent(event)
-
-    def mouseMoveEvent(self, event: QMouseEvent):
-        geometry = self.geometry()
-        moveMode = ['top_right', 'top_left', 'bottom_right', 'bottom_left', 'right', 'left', 'bottom', 'top']
-        if self.pointMode in moveMode:
-            if self.pointMode == "top_right":
-                geometry.setTopRight(QCursor.pos())
-            elif self.pointMode == "top_left":
-                geometry.setTopLeft(QCursor.pos())
-            elif self.pointMode == "bottom_right":
-                geometry.setBottomRight(QCursor.pos())
-            elif self.pointMode == "bottom_left":
-                geometry.setBottomLeft(QCursor.pos())
-            elif self.pointMode == "top":
-                geometry.setTop(QCursor.pos().y())
-            elif self.pointMode == "bottom":
-                geometry.setBottom(QCursor.pos().y())
-            elif self.pointMode == "right":
-                geometry.setRight(QCursor.pos().x())
-            elif self.pointMode == "left":
-                geometry.setLeft(QCursor.pos().x())
-            self.setGeometry(geometry)
-        super().mouseMoveEvent(event)
-
-    def setWindowTitle(self, title):
-        self.title_bar.title.setText(title)
-        return super().setWindowTitle(title)
-
-    def closeEvent(self, event):
-        # WindowManager.instance().remove_window(self)
-        self.outline_widget.close()
-        super().closeEvent(event)
-
-    def moveEvent(self, event):
-        super().moveEvent(event)
-        self.outline_widget.update_position()
-        WindowManager.instance().update_active_window_outline()
-
-    def resizeEvent(self, event):
-        super().resizeEvent(event)
-        self.outline_widget.update_position()
-        WindowManager.instance().update_active_window_outline()
-
-    def changeEvent(self, event):
-        super().changeEvent(event)
-        if event.type() == QEvent.Type.ActivationChange:
-            WindowManager.instance().update_active_window_outline()
-            self.outline_widget.update_position()
-
+        self._titleBar.hBoxLayout.insertWidget(2, self.action_bar, 0, Qt.AlignmentFlag.AlignLeft)
+        # self.titleBar.iconLabel.setVisible(False)
 
 class DialogAbs(QDialog):
     def __init__(self):

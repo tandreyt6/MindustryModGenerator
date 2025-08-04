@@ -98,7 +98,7 @@ class LauncherWindow(WindowAbs):
     def setup_ui(self):
         widget = QWidget()
         self.v = QVBoxLayout(widget)
-        self.setCentralWidget(widget)
+        self.addContentWidget(widget)
 
         toolbar = QHBoxLayout()
         self.v.addLayout(toolbar)

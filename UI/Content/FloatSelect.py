@@ -7,3 +7,5 @@ class Widget(FloatSpinBox):
 
     def __init__(self):
         super().__init__()
+        self.setMinimum(0)
+        self.setMaximum(2147483647)

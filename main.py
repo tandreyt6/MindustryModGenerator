@@ -27,11 +27,15 @@ import json
 import func
 import func.memory as memory
 
+import logging
+
 from PyQt6.QtWidgets import *
 from PyQt6.QtCore import *
 from PyQt6.QtGui import *
 
 from threading import Thread
+
+from datetime import datetime
 
 from UI.Window.SplashWindow import SplashScreen
 
@@ -51,6 +55,51 @@ func.MmgApi.Libs.UI = UI
 memory.put("appIsRunning", True)
 
 SELECTED_THEME = ("", "")
+
+class ErrorOnlyFileHandler(logging.FileHandler):
+    def __init__(self, filename, mode='a', encoding=None, delay=False):
+        self.has_errors = False
+        super().__init__(filename, mode, encoding, delay)
+
+    def emit(self, record):
+        if record.levelno >= logging.ERROR:
+            self.has_errors = True
+            super().emit(record)
+
+    def close(self):
+        if not self.has_errors:
+            super().close()
+            if os.path.exists(self.baseFilename) and os.path.getsize(self.baseFilename) == 0:
+                os.remove(self.baseFilename)
+        else:
+            super().close()
+
+
+def get_log_filename(base_name="mmg_errors"):
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    os.makedirs("./logs/", exist_ok=True)
+    log_file = f"./logs/{base_name}.log"
+
+    if os.path.exists(log_file) and os.path.getsize(log_file) > 0:
+        log_file = f"./logs/{base_name}_{timestamp}.log"
+
+    return log_file
+
+logger = logging.getLogger()
+logger.setLevel(logging.ERROR)
+
+handler = ErrorOnlyFileHandler(get_log_filename())
+handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(message)s'))
+logger.addHandler(handler)
+
+
+def log_exception(exc_type, exc_value, exc_traceback):
+    logger.error(
+        "Exception Error:\n%s",
+        ''.join(traceback.format_exception(exc_type, exc_value, exc_traceback))
+    )
+
+sys.excepthook = log_exception
 
 class Main:
     def __init__(self):
@@ -253,7 +302,6 @@ class Main:
             plugin_env = {
                 "MmgApi": func.MmgApi
             }
-            print(func.MmgApi.Libs.Main, "test ---------------")
 
             for dep in dependencies[plugin_name]:
                 if dep in reserved_names:
@@ -294,38 +342,34 @@ class Main:
         removed = []
         for plug in self.loadedPlugins:
             try:
-                c = self.loadedPlugins[plug].getContent()
-                p = self.loadedPlugins[plug].getPlanets()
-                for content in c:
-                    LIST_TYPES[plug + "_" + content] = c[content]
-                for content in p:
-                    LIST_PLANETS_TYPES[plug + "_" + content] = p[content]
+                if hasattr(self.loadedPlugins[plug], 'getContent') and callable(getattr(self.loadedPlugins[plug], 'getContent')):
+                    c = self.loadedPlugins[plug].getContent()
+                    for content in c:
+                        c[content]['plugin'] = plug
+                        LIST_TYPES[plug + "_" + content] = c[content]
             except Exception as e:
                 removed.append(plug)
                 traceback.print_exc()
         for plug in removed:
             del self.loadedPlugins[plug]
-
 
     def initTemplates(self):
-        removed = []
         for plug in self.loadedPlugins:
             try:
-                t = self.loadedPlugins[plug].getStructuresMod()
-                for template in t:
-                    LIST_MOD_TEMPLATES[template + "  (" + plug + ")"] = t[template]
+                if hasattr(self.loadedPlugins[plug], 'getStructuresMod') and callable(getattr(self.loadedPlugins[plug], 'getStructuresMod')):
+                    t = self.loadedPlugins[plug].getStructuresMod()
+                    for template in t:
+                        LIST_MOD_TEMPLATES[template + "  (" + plug + ")"] = t[template]
             except Exception as e:
-                removed.append(plug)
                 traceback.print_exc()
-        for plug in removed:
-            del self.loadedPlugins[plug]
-
 
     def initEvent(self):
         removed = []
         for plug in self.loadedPlugins:
             try:
-                r = self.loadedPlugins[plug].initComplite()
+                if hasattr(self.loadedPlugins[plug], 'initCompleted') and callable(getattr(self.loadedPlugins[plug], 'initCompleted')):
+                    r = self.loadedPlugins[plug].initCompleted()
+                else: r = False
             except Exception as e:
                 r = False
                 traceback.print_exc()
@@ -405,6 +449,8 @@ class Main:
             self.settingsWindow.exec()
 
     def closeEditor(self, event, b):
+        self.editor.techTree._can_full_close = True
+        self.editor.techTree.close()
         event.accept()
         if not b:
             settings.save_data("openedProject", None)

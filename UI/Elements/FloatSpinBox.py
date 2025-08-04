@@ -8,18 +8,13 @@ class FloatSpinBox(QDoubleSpinBox, BaseCustomWidget):
         super().__init__(QDoubleSpinBox, None)
         super().__init__(BaseCustomWidget, None)
         self.setValue(value)
-
         self.valueChanged.connect(lambda val: self.signal.value_changed.emit(val))
 
     def setValue(self, val):
-        if isinstance(val, str):
-            value = float(val.lower().split("f")[0])
-        else:
-            value = float(val)
-        super().setValue(value)
+        super().setValue(float(val.lower().split("f")[0]) if isinstance(val, str) else float(val))
 
     def set_value(self, value):
         self.setValue(value)
 
     def value(self) -> str:
-        return str(super().value()) + "f"
+        return super().value()

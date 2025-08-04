@@ -1,7 +1,7 @@
 import json
 
 
-class WallConstructor:
+class ItemConstructor:
     @staticmethod
     def getJavaCode(package: str, data: dict):
         result = {}
@@ -18,23 +18,12 @@ class WallConstructor:
                 print(key)
                 if key.startswith("_"):
                     continue
-                java_value = WallConstructor._convert_to_java(value)
+                java_value = ItemConstructor._convert_to_java(value)
                 print(java_value)
-                if key == "requirements":
-                    java_lines.insert(0, f"        {java_value};")
+                if key == "package": continue
+                elif key == "color":
+                    java_lines.append(f"        {key} = Color.valueOf({java_value});")
                     continue
-                elif key == "package": continue
-                elif key == "buildCost":
-                    if changed.get('requirements') is not None and len(changed.get('requirements')) > 0:
-                        java_lines.append(("        var buildTime = 0f;\n"
-                         "        for (ItemStack stack : requirements) \n"
-                         "        {\n"
-                         "            buildTime += stack.amount * stack.item.cost;\n"
-                         "        }\n"
-                         f"        buildCostMultiplier = {str(WallConstructor._convert_to_java(float(value)*60))}/buildTime;\n"))
-                        continue
-                    else:
-                        java_lines.append(f"        buildCostMultiplier = {str(WallConstructor._convert_to_java(float(value) * 3))};\n")
                 java_lines.append(f"        {key} = {java_value};")
 
             pk = '.'.join(path.split('.'))
@@ -42,17 +31,14 @@ class WallConstructor:
                 pk = "."+pk
             java_code = (
                 f"package {package}.content{pk};\n"
-                f"\nimport mindustry.content.Items;\n"
-                f"import mindustry.type.Category;\n"
-                f"import mindustry.type.ItemStack;\n"
-                f"import static mindustry.type.ItemStack.with;\n"
-                f"import mindustry.world.blocks.defense.Wall;\n"
-                f"import {package}.initScript;\n"
-                f"\npublic class {class_name} extends Wall {{\n"
-                f"    public {class_name}(initScript _mcl) {{\n"
+                f"\nimport mindustry.type.Item;\n"
+                f"import arc.graphics.Color;\n"
+
+                f"\npublic class {class_name} extends Item {{\n"
+                f"    public {class_name}() {{\n"
                 f'        super("{class_name}");\n'
                 f'        alwaysUnlocked = false;\n'
-                f"{WallConstructor._format_params(java_lines)}\n"
+                f"{ItemConstructor._format_params(java_lines)}\n"
                 f"    }}\n"
                 f"}}"
             )
@@ -63,7 +49,7 @@ class WallConstructor:
                 "filename": name + end,
                 "init": [
                     f"import {package}.content{pk}.{name};",
-                    f"new {name}(instance);"
+                    f"new {name}();"
                 ]
             }
 
@@ -80,8 +66,7 @@ class WallConstructor:
         elif isinstance(value, str):
             return f'"{value}"'
         elif isinstance(value, list):
-            items = ", ".join(f"{item[0]}, {item[1]}" for item in value)
-            return f"requirements(Category.defense, ItemStack.with({items}))"
+            return str(value)
         elif isinstance(value, dict):
             return json.dumps(value, indent=2)
         elif value is None:

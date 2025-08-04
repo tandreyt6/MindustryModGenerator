@@ -9,10 +9,13 @@ from PyQt6.QtWidgets import QDialog, QApplication
 
 import MmgApi
 from JavaConstructor import JavaConstructor
+import JavaConstructor as JCGlobals
 from MmgApi.Libs import UI, Main, PyQt6, Language
-from .dialogs.Create145Dil import ProjectDialog
-from .content.Wall import Wall
-from .content.easy_planet import PlanetDialog
+from dialogs.Create145Dil import ProjectDialog
+from content.Wall import Wall
+from content.Item import Item
+from content.easy_planet import PlanetDialog
+from Widgets.CanvasDisableGrid import CanvasDisableGrid
 import Language as Translate
 
 CentAbsWidget = UI.Content.CentralAbstractWidget.CentAbsWidget
@@ -22,16 +25,13 @@ CanvasWidget = UI.Elements.BlockViewOnBackground.CanvasWidget
 class Plugin:
     def __init__(self, app: Main):
         self.app = app
+        print(Language.Lang.type)
         Translate.Lang = Translate.RU if Language.Lang.type == "ru" else Translate.EN
-        MmgApi.Libs.Events.on("editorStarted", lambda x: self.onEditor(x['editor']))
+        MmgApi.Libs.Events.on("ItemCreated", lambda x: self.createItem(x))
 
-    def onEditor(self, editor = None):
-        self.open_tree_action = QAction("New planet")
-        self.open_tree_action.triggered.connect(self.newPlanet)
-        editor.treeMenu.addAction(self.open_tree_action)
-
-    def newPlanet(self):
-        print("newPlanet")
+    def createItem(self, item):
+        if item['data']['content'] in JCGlobals.ID_ITEMS:
+            MmgApi.Libs.Main.editor._GLOBALS.ITEMS[f"_mcl.var_{item['name']}"] = {"displayName": item["name"]}
 
     def getContent(self):
         return {
@@ -40,17 +40,17 @@ class Plugin:
                 "type": Wall,
                 "end": ".java",
                 "centralWidget": CanvasWidget
+            },
+            "item": {
+                "displayName": "Item",
+                "type": Item,
+                "end": ".java",
+                "centralWidget": CanvasDisableGrid
             }
         }
 
     def getPlanets(self):
-        return {
-            "easy_planet": {
-                "displayName": "Easy Planet",
-                "type": PlanetDialog,
-                "end": ".java"
-            }
-        }
+        return { }
 
     def getConstructor(self):
         return JavaConstructor(self)
@@ -58,7 +58,7 @@ class Plugin:
     def hasConstructor(self):
         return True
 
-    def initComplite(self):
+    def initCompleted(self):
         print("generic loaded!")
         return True
 
@@ -87,29 +87,25 @@ class Plugin:
         with open(os.path.join(src_path, "MindustryMod.java"), "w", encoding="utf-8") as f:
             f.write(f"""package {data['package']};
 import mindustry.mod.*;
-
+import arc.util.Log;
+import {data['package']}.ModTechTree;
 public class MindustryMod extends Mod {{
 
     @Override
     public void init() {{
+        Log.info("Initializing mod ");
     }}
 
     @Override
     public void loadContent() {{
+        Log.info("Starting loadContent...");
         var contentLoader = new initScript();
+        contentLoader.instance = contentLoader;
         contentLoader.loadContent();
-    }}
-}}""")
-
-        with open(os.path.join(src_path, "initScript.java"), "w", encoding="utf-8") as f:
-            f.write(f"""package {data['package']};
-
-public class initScript {{
-
-    void initScript(){{
-    }}
-
-    public void loadContent(){{
+        Log.info("initScript content loaded");
+        var treeModLoader = new ModTechTree(contentLoader);
+        treeModLoader.load();
+        Log.info("ModTechTree loaded");
     }}
 }}""")
 

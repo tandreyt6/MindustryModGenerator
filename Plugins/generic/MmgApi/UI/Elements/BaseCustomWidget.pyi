@@ -25,6 +25,7 @@ class BaseCustomWidget(QWidget):
             initial_value: Starting value for the widget
             parent: Parent Qt widget
         """
+        self.signal = pyqtSignal(str)
 
     def set_value(self, value: Any) -> None:
         """Abstract method to update widget's value. Must be implemented in subclasses."""

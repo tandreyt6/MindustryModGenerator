@@ -4,6 +4,7 @@ from MmgApi.Libs import Content, os, uiMethods, UI
 import MmgApi
 from PyQt6 import QtWidgets, QtGui
 
+from Widgets.ColorWidget import ColorWidget
 from Widgets.RequirementsWidget import RequirementsWidget
 
 BaseCustomWidget = MmgApi.Libs.UI.Elements.BaseCustomWidget.BaseCustomWidget
@@ -16,8 +17,8 @@ IntSelect = UI.Content.IntSelect
 FloatSelect = UI.Content.FloatSelect
 saveMode = UI.ContentFormat.saveMode
 
-class Wall(ContentAbstract):
-    def __init__(self, id, name="Wall"):
+class Item(ContentAbstract):
+    def __init__(self, id, name="Item"):
         self.name = name
         ContentAbstract.__init__(self)
         self._item = None
@@ -29,34 +30,8 @@ class Wall(ContentAbstract):
         # <var name> = tuple(contentType(CustomWidgetType), defaultValue, group, isVisible, eventFilter, saveMode, showTitle, filterIndex)
         # ... = tuple(None, None, "unknown", True, None, saveMode.ifChanged, True, None, None)
 
-        self.requirements = (RequirementsWidget, [], "requirements", True, None, saveMode.ifChanged, False, 0)
-
-        self._sizeSpinBox = IntSelect.Widget()
-        self._sizeSpinBox.setMaximum(16)
-        self._sizeSpinBox.setMinimum(1)
-        self.size = (self._sizeSpinBox, 1, "building", True, None, saveMode.ifChanged, True, 1)
-
-        self._buildTimeSpinBox = FloatSelect.Widget()
-        self._buildTimeSpinBox.setMaximum(99999)
-        self._buildTimeSpinBox.setMinimum(-1.0)
-        self.buildCost = (self._buildTimeSpinBox, -1.0, "building", True, None, saveMode.ifChanged, True, 3)
-
-        self._healthSpinBox = IntSelect.Widget()
-        self._healthSpinBox.setMaximum(999999)
-        self._healthSpinBox.setMinimum(1)
-        self.health = (self._healthSpinBox, 100, "building", True, None, saveMode.ifChanged, True, 2)
-
-        self.lightningChance = (float, -1.0, "lighting")
-        self.lightningDamage = (float, 20.0, "lighting")
-        self.lightningLength = (int, 17, "lighting")
-        # self.lightningColor = "Pal.surge"
-        # self.lightningSound = "Sounds.spark"
-
-        self.chanceDeflect = (float, -1.0, "deflect")
-        # self.flashHit = None
-        # self.flashColor = "Color.white"
-        # self.deflectSound = "Sounds.none"
-        self.crushDamageMultiplier = (float, 5, "deflect")
+        self.color = (ColorWidget, "#ffffff", "Base")
+        self.cost = (float, 1.0, "Base")
 
         self.package = None
 
@@ -77,8 +52,8 @@ class Wall(ContentAbstract):
             self.lblSprite.setText(file_path)
             self._convas.view_scale = 0.3
             self._convas.update()
-            os.makedirs(MmgApi.Libs.Main.editor.path + "/assets/sprites/block/", exist_ok=True)
-            self._pixmap.save(MmgApi.Libs.Main.editor.path + "/assets/sprites/block/" + self.name + ".png")
+            os.makedirs(MmgApi.Libs.Main.editor.path + "/assets/sprites/items/", exist_ok=True)
+            self._pixmap.save(MmgApi.Libs.Main.editor.path + "/assets/sprites/items/" + self.name + ".png")
 
     def saveEvent(self):
         pass
@@ -91,8 +66,8 @@ class Wall(ContentAbstract):
                 s = self._convas.scene_rect.width() // 32
                 self._convas.add_sprite(self._pixmap, s // 2 * 32, s // 2 * 32, False)
                 if MmgApi.Libs.Main and MmgApi.Libs.Main.editor:
-                    if os.path.exists(MmgApi.Libs.Main.editor.path + "/assets/sprites/block/" + self.name + ".png"):
-                        self._pixmap.load(MmgApi.Libs.Main.editor.path + "/assets/sprites/block/" + self.name + ".png")
+                    if os.path.exists(MmgApi.Libs.Main.editor.path + "/assets/sprites/items/" + self.name + ".png"):
+                        self._pixmap.load(MmgApi.Libs.Main.editor.path + "/assets/sprites/items/" + self.name + ".png")
 
         spriteTab = QtWidgets.QWidget()
         lSprite = QtWidgets.QVBoxLayout(spriteTab)

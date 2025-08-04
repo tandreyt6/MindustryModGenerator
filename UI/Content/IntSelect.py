@@ -10,6 +10,8 @@ class Widget(QSpinBox, BaseCustomWidget):
     def __init__(self):
         super().__init__(QSpinBox, None)
         super().__init__(BaseCustomWidget, None)
+        self.setMinimum(0)
+        self.setMaximum(2147483647)
 
     def set_value(self, value):
         self.setValue(value)

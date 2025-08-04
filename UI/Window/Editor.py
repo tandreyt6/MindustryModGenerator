@@ -22,11 +22,14 @@ from UI.Elements.CreateElementDialog import CreateElementDialog
 from UI.Elements.DragTab import DraggableTabWidget
 from UI.Elements.SplashDil import SplashDil
 from UI.Window.WindowAbs import WindowAbs
-from func import settings
+from func import settings, MmgApi
 from func.GLOBAL import CONTENT_FOLDER, LIST_TYPES
+from func import GLOBAL
 from func.Types.Content import Content
+import func.Events as Events
 from UI.Window.TechTreeWindow import TechTreeWindow, TechTreeEditor
 
+_EDITOR = None
 
 class TreeWidgetItem(QTreeWidgetItem):
     def __init__(self, text, data=None, parent=None):
@@ -228,7 +231,7 @@ class TreeWidget(QTreeWidget):
         return len(text.strip()) > 0
 
     def validate_rename(self, old_text, new_text, item):
-        return self.parent().parent().parent().parent().parent().handle_rename_validation(old_text, new_text, item)
+        return _EDITOR.handle_rename_validation(old_text, new_text, item)
 
     def handle_rename_complete(self, old_text, new_text, item):
         self.itemRenamed.emit(old_text, new_text, item)
@@ -334,9 +337,14 @@ class EditorWindow(WindowAbs):
 
     def __init__(self, main, data):
         super().__init__()
+        global _EDITOR
+        _EDITOR = self
+        MmgApi.Libs.Main.editor = self
+        self._GLOBALS = GLOBAL
         self.elementsData = ElementsDict()
         self.planetsData = {}
         self.path = data.get("path")
+        self.researchElements = {}
         self.main = main
         self.launcherData = data
         try:
@@ -390,7 +398,10 @@ class EditorWindow(WindowAbs):
         self.setWindowTitle(self.data.get("displayName", "") + " - Editor")
         if self.path:
             if os.path.exists(os.path.join(self.path, "icon.png")):
+                icon = QIcon(os.path.join(self.path, "icon.png"))
                 QApplication.setWindowIcon(QIcon(os.path.join(self.path, "icon.png")))
+            else:
+                self._titleBar.setIcon(QIcon("appIcon.ico"))
         self.setGeometry(100, 100, 1200, 800)
 
         FileMenu = QMenu(Language.Lang.Editor.ActionPanel.file)
@@ -488,6 +499,7 @@ class EditorWindow(WindowAbs):
         self.treeMenu.addAction(self.open_tree_action)
 
         self.techTree = TechTreeWindow()
+        self.techTree._package = self.package
         self.techTree.project_path = self.path
         self.techTree.load_from_file()
 
@@ -503,7 +515,7 @@ class EditorWindow(WindowAbs):
         self.v = QVBoxLayout(self.central_widget)
         self.v.setContentsMargins(0, 0, 0, 0)
         self.v.setSpacing(2)
-        self.setCentralWidget(self.central_widget)
+        self.addContentWidget(self.central_widget)
 
         self.splitter = QSplitter()
         self.actionPanel = QWidget()
@@ -551,7 +563,6 @@ class EditorWindow(WindowAbs):
 
         self.v.insertWidget(0, self.main_splitter)
 
-        self.init_test_data()
         self.loadDirsForContent(
             CONTENT_FOLDER.replace("~", self.path).format(package="/".join(self.package.split('.'))))
         self.loadElementsFromFile()
@@ -564,13 +575,12 @@ class EditorWindow(WindowAbs):
     def showTechTree(self):
         elements = self.get_researchable_elements()
         self.techTree.update_elements(elements)
-        self.techTree.planetsData = self.planetsData
         self.techTree.show()
         self.techTree.raise_()
 
     def setTheme(self, theme):
         self.setStyleSheet(theme[1])
-        self.techTree.setStyleSheet(theme[1])
+        # self.techTree.setStyleSheet(theme[1])
 
     def runTask(self):
         def execute_custom_task():
@@ -591,15 +601,17 @@ class EditorWindow(WindowAbs):
             )
 
         dialog = self._create_input_dialog(
-            title="Gradle Task",
-            label="gradle:",
-            placeholder="task name",
+            title=Language.Lang.Editor.Dialog.gradlew_task,
+            label="",
+            placeholder=Language.Lang.Editor.Dialog.task_placeholder,
             execute_callback=execute_custom_task
         )
         dialog.exec()
 
     def buildTask(self):
-        self.generateAllElements()
+        x = self.generateAllElements()
+        self.techTree.save_all_to_java()
+        if not x: return
         def build_executor(splash_dialog):
             splash_dialog.text.setText(Language.Lang.Editor.Dialog.start_task.format(name="Clean"))
             success, message = self.gradlewManager.clean()
@@ -786,6 +798,7 @@ class EditorWindow(WindowAbs):
                 os.remove(file + self.elementsData[id(item)]['data']['end'])
             if self.elementsData[id(item)]['tab'] is not None:
                 self.close_tab(self.elementsData[id(item)]['tab'])
+            Events.fire("ItemRemoved", self.elementsData[id(item)])
             del self.elementsData[id(item)]
             self.saveElementsData()
         else:
@@ -813,12 +826,9 @@ class EditorWindow(WindowAbs):
             index = self.tree.indexOfTopLevelItem(item)
             self.tree.takeTopLevelItem(index)
 
-    def init_test_data(self):
-        pass
-
     def generateImportJavaCode(self, imports, inits) -> str:
         im = "\n".join(imports)
-        vr = '\n'.join([f'  {_[2]} {_[1]};' for _ in inits])
+        vr = '\n'.join([f'  public {_[2]} {_[1]};' for _ in inits])
         ex = '\n'.join([f'      this.{_[1]} = {_[0]}' for _ in inits])
         template = \
             f"""package {self.package};
@@ -827,11 +837,8 @@ class EditorWindow(WindowAbs):
 
 public class initScript {{
 
+    public initScript instance;
 {vr}
-
-    void initScript(){{
-
-    }}
 
     public void loadContent() 
     {{
@@ -850,17 +857,32 @@ public class initScript {{
     def generateAllElements(self):
         imports = []
         create = []
-        for plugname, plugin in self.main.loadedPlugins.items():
-            if not plugin.hasConstructor(): continue
-            x = plugin.getConstructor().saveElements(self.elementsData, self.package)
+        sort = {}
+        for item in self.elementsData.data:
+            print(self.elementsData.data[item])
+            plugin = self.main.loadedPlugins.get(LIST_TYPES[self.elementsData.data[item]['data']['content']]['plugin'])
+            if plugin is None or not plugin.hasConstructor():
+                QMessageBox.warning(
+                    None,
+                    "",
+                    Language.Lang.Editor.Dialog.failed_build_item_no_constructor.format(name=item['name'])
+                )
+                return False
+            sort.setdefault(LIST_TYPES[self.elementsData.data[item]['data']['content']]['plugin'], {})[self.elementsData.data[item]['name']] = self.elementsData.data[item]
+
+        for plug in sort:
+            plugin = self.main.loadedPlugins.get(plug)
+            x = plugin.getConstructor().saveElements(sort[plug], self.package)
             for im, ex in x:
                 imports.append(im)
                 create.append(ex)
+
         text = self.generateImportJavaCode(imports, create)
         self.saveInitScript(text)
         for index in range(self.techTree.tabs.count()):
             w: TechTreeEditor = self.techTree.tabs.widget(index)
             print(w.tech_tree.generate_java_code())
+        return True
 
 
     def createItem(self, item: TreeWidgetItem | TreeWidget):
@@ -884,20 +906,22 @@ public class initScript {{
             p = dil.category_edit.text().split("/")
             p.append(dil.name_edit.text())
             it = self.add_item_from_name(dil.name_edit.text(), p)
-            self.elementsData.add(dil.name_edit.text(), dil.category_edit.text(), id(it), {
+            data = {
                 "data": {
                     "data": {},
                     "path": dil.category_edit.text(),
                     "content": dil.type_edit.input_field.text(),
                     "end": LIST_TYPES.get(dil.type_edit.input_field.text())["end"]
                 },
+                "plugin": LIST_TYPES.get(dil.type_edit.input_field.text())["plugin"],
                 "item": it,
                 "tab": None,
                 "tab_content": {},
                 "name": dil.name_edit.text()
-            })
+            }
+            self.elementsData.add(dil.name_edit.text(), dil.category_edit.text(), id(it), data)
+            Events.fire("ItemCreated", data)
             self.saveElementsData()
-            print(self.elementsData.data)
             self.setActionLabel(Language.Lang.Editor.ActionPanel.item_has_been_created_path
                                 .format(name=dil.name_edit.text(), path='\'/' + '/'.join(item.get_path())) + '\'')
 
@@ -957,15 +981,15 @@ public class initScript {{
                         path = data[name]["path"].split("/")
                         path.append(name)
                         item = self.add_item_from_name(name, path)
-                        if name == "wall1":
-                            data[name]["data"]["_canResearch"] = True
-                        self.elementsData.add(name, "/".join(item.get_path()), id(item), {
+                        dt = {
                             "data": data[name],
                             "tab": None,
                             "tab_content": {},
                             "item": item,
                             "name": name
-                        })
+                        }
+                        Events.fire("ItemCreated", dt)
+                        self.elementsData.add(name, "/".join(item.get_path()), id(item), dt)
             except Exception as err:
                 QMessageBox.warning(self, Language.Lang.Editor.Dialog.error,
                                     Language.Lang.Editor.Dialog.error_load_elements_save.format(err=str(err)))
@@ -1006,8 +1030,8 @@ public class initScript {{
             right_widget.pack()
             right_widget.saveFromSelf.connect(self.saveFromSelf)
             return
-        canvas = QLabel('Unknown content type')
-        right_widget = QLabel("Unknown type")
+        canvas = QLabel(Language.Lang.Editor.Dialog.unknown_item_no_loader.format(name=self.elementsData[id(item)]['plugin']))
+        right_widget = QLabel(Language.Lang.Editor.Dialog.unknown_item_no_loader.format(name=self.elementsData[id(item)]['plugin']))
         self.right_content.addWidget(right_widget)
         self.create_tab(canvas, right_widget, item)
 
@@ -1073,6 +1097,9 @@ public class initScript {{
         if 'main_splitter' in settings:
             self.main_splitter.setSizes(settings['main_splitter'])
         if 'window_geometry' in settings:
+            if settings['window_geometry'] == "max":
+                self.showMaximized()
+                return
             self.restoreGeometry(QByteArray.fromHex(bytes(settings['window_geometry'], 'utf-8')))
 
     def closeEvent(self, event):
@@ -1080,7 +1107,7 @@ public class initScript {{
         save_data = {
             'splitter_sizes': self.splitter.sizes(),
             'main_splitter': self.main_splitter.sizes(),
-            'window_geometry': bytes(self.saveGeometry()).hex()
+            'window_geometry': bytes(self.saveGeometry()).hex() if not self.isMaximized() else "max"
         }
         self.saveRequested.emit(save_data)
         self.closeSignal.emit(event, self.notExitOnLauncher)
